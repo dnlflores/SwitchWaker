@@ -58,6 +58,7 @@
 
 #include <imgui.h>
 #include <SDL3/SDL_gamepad.h>
+#include <SDL3/SDL_platform_defines.h>
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_scancode.h>
 
@@ -144,6 +145,12 @@ uint32_t readGamepads() {
         const bool rt = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > 16000;
         // ZL+ZR+Minus: elsewhere BACK can be a game button (an NSO GameCube controller's Z).
         bool combo = lt && rt && SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_BACK);
+#if defined(SDL_PLATFORM_IOS)
+        // Back/View/Select opens settings on iPhone/iPad, including at the title
+        // screen. DualSense also exposes its touchpad click as a separate button.
+        combo = combo || SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_BACK) ||
+                SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_TOUCHPAD);
+#endif
         // A GameCube controller through SDL: L and R are the triggers, Z the right shoulder.
         combo = combo || (lt && rt && SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER));
         if (combo) {
@@ -428,6 +435,9 @@ const PcSettingChoice kFbScale[] = {
     {"0", "Tamaño de la ventana", "Window size"},
     {"1.0", "854x480 (1.0)"},  {"1.125", "960x540 (1.125)"}, {"1.25", "1067x600 (1.25)"},
     {"1.5", "1280x720 (1.5)"}, {"2.0", "1707x960 (2.0)"},    {"2.25", "1920x1080 (2.25)"},
+#if defined(SDL_PLATFORM_IOS)
+    {"3.0", "2560x1440 (3.0)"}, {"4.5", "3840x2160 (4.5)"},
+#endif
 };
 const PcSettingChoice kAspect[] = {{"16:9", "16:9 (panorámica)", "16:9 (widescreen)"}, {"4:3", "4:3 (GameCube)"}, {"16:10", "16:10"}};
 const PcSettingChoice kOnOff[] = {{"0", "Desactivado", "Off"}, {"1", "Activado", "On"}};
@@ -1450,8 +1460,13 @@ void drawMenu() {
     ImGui::SetCursorPosY(ImGui::GetWindowHeight() - ImGui::GetTextLineHeightWithSpacing() -
                          ImGui::GetStyle().WindowPadding.y);
     ImGui::TextColored(kDim, "%s",
+#if defined(SDL_PLATFORM_IOS)
+                       T("A: cambiar   B: cerrar   L/R: pestaña   Back/Select: cerrar",
+                         "A: change   B: close   L/R: tab   Back/Select: close"));
+#else
                        T("A/Intro: cambiar   B/Esc: cerrar   L/R, Q/E: pestaña   F1: cerrar",
                          "A/Enter: change   B/Esc: close   L/R, Q/E: tab   F1: close"));
+#endif
     ImGui::End();
 }
 
@@ -1780,7 +1795,11 @@ void menuInit() {
         smokeParse();
     }
     writef(STDERR_FILENO, "[cos] menu: %d settings; open with %s; settings file %s\n", pc_settings_count(),
+#if defined(SDL_PLATFORM_IOS)
+           "Back/View/Select, touchpad click, F1 or L+R+Z", pc_settings_path());
+#else
            "F1 or L+R+Z", pc_settings_path());
+#endif
 }
 
 bool menuOpen() {

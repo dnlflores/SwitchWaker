@@ -50,6 +50,12 @@ The game link list is generated after compilation from source dependencies,
 preserving main.dol → REL → audio order and resolving Xcode's hashed filenames
 for duplicate source basenames (`native/tools/xcode_objects.py`).
 
+## Graphics, textures and controller settings
+
+See [iOS graphics and mods](IOS_MODS.md) for controller Back-button access,
+widescreen, texture-folder importing, higher resolutions and the existing
+community quality-of-life options. Saves and settings are preserved.
+
 ## Build prerequisites
 
 Use Xcode with the iOS 27 SDK and CMake 3.28 or newer, Ninja, Python 3.10+

@@ -8,7 +8,8 @@ for sdk in iphoneos iphonesimulator; do
     xcrun --sdk "$sdk" clang++ -target "$target" \
         -isysroot "$(xcrun --sdk "$sdk" --show-sdk-path)" \
         -fobjc-arc -fsyntax-only -Wall -Wextra -Werror -Wno-deprecated-declarations \
-        '-DCOS_GAME_ID_STR="GZLE01"' "$repo/ios/src/platform.mm"
+        -I "$repo/native/include" '-DCOS_GAME_ID_STR="GZLE01"' \
+        "$repo/ios/src/platform.mm" "$repo/ios/src/texture_import.mm"
     echo "UIKit importer: $sdk OK"
 done
 plutil -lint "$repo/ios/Info.plist.in"

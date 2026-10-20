@@ -69,6 +69,11 @@ larger ASTC blocks would save memory at a visible quality and encoding-time cost
 
 ## Running
 
+iOS: use the launcher’s **Import HD texture folder…** action with an extracted
+Dolphin DDS `GZL` folder, then enable **Graphics > HD textures** with the controller
+Back/View/Select menu. The installed copy is in `Documents/hd_textures`. See
+[the iOS instructions](IOS_MODS.md).
+
 Mac: `COS_HD_TEXTURES=1 COS_HD_PACK=build/hd-pack-1024 build/native-mac/switchwaker ...` (a loose Dolphin
 folder works too: `COS_HD_PACK=".../GZL"`, but it uses up to 10x the memory since the files have no
 size cap and few mips).

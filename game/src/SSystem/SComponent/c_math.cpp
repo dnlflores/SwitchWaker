@@ -111,7 +111,18 @@ static u16 atntable[] = {
 
 /* 8024609C-802460D0       .text U_GetAtanTable__Fff */
 u16 U_GetAtanTable(float f0, float f1) {
+#if TARGET_PC
+    // A NaN reaches this (the cut ropes of d_a_mflft.cpp). The conversion gives 0x80000000 on the
+    // GameCube and on x86-64: the GameCube's 32 bit address wraps back to entry 0, x86-64 reads 4 GB
+    // below the table and faults. Entry 0 here, as on the GameCube.
+    f32 ratio = f0 / f1 * 1024;
+    if (!(ratio >= 0.0f && ratio <= 1024.0f)) {
+        return atntable[0];
+    }
+    return atntable[(int)ratio];
+#else
     return atntable[(int)(f0 / f1 * 1024)];
+#endif
 }
 
 /* 802460D0-80246270       .text cM_atan2s__Fff */

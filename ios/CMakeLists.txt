@@ -42,7 +42,8 @@ if (NOT COS_RUNTIME_ASSETS)
     message(FATAL_ERROR "The iOS app requires COS_RUNTIME_ASSETS=ON")
 endif ()
 
-add_library(cos_ios_entry STATIC src/main.cpp src/platform.mm)
+add_library(cos_ios_entry STATIC src/main.cpp src/platform.mm src/texture_import.mm)
+target_include_directories(cos_ios_entry PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../native/include")
 target_compile_options(cos_ios_entry PRIVATE "$<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>")
 target_link_libraries(cos_ios_entry PUBLIC "-framework UIKit" "-framework Foundation"
         "-framework UniformTypeIdentifiers")
