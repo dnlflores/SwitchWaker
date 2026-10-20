@@ -117,10 +117,13 @@ target_link_libraries(imgui PRIVATE dawn::webgpu_dawn)
 # ---- Aurora: native/'s pin with the shared and the Switch patches, in the build directory -----------
 # The copy gets native/patches/aurora/*.patch first (decision H11, the patches every Mac build has),
 # then aurora/patches/*.patch, each set in name order, through native/cmake's
-# aurora_apply_patches.cmake. It is redone when the source path or either patch set changes.
+# aurora_apply_patches.cmake. It is redone when the source path, its state (COS_SWITCH_AURORA_ID:
+# build_native.sh's source_tree_id of the checkout, which the container sees at a fixed path) or either
+# patch set changes.
 set(COS_SWITCH_AURORA_DIR "${CMAKE_BINARY_DIR}/aurora-switch")
+set(COS_SWITCH_AURORA_ID "" CACHE STRING "the Aurora checkout's commit and local changes (build_native.sh)")
 set(_aurora_patch_dirs "${COS_REPO_ROOT}/native/patches/aurora" "${COS_SWITCH_DIR}/aurora/patches")
-set(_aurora_stamp "${COS_SWITCH_AURORA_SOURCE}\n")
+set(_aurora_stamp "${COS_SWITCH_AURORA_SOURCE}\n${COS_SWITCH_AURORA_ID}\n")
 set(_aurora_count 0)
 foreach (_dir IN LISTS _aurora_patch_dirs)
     file(GLOB _patches CONFIGURE_DEPENDS "${_dir}/*.patch")
@@ -142,7 +145,7 @@ if (NOT EXISTS "${COS_SWITCH_AURORA_DIR}" OR NOT _aurora_previous STREQUAL _auro
             PATTERN ".git" EXCLUDE)
     foreach (_dir IN LISTS _aurora_patch_dirs)
         execute_process(COMMAND "${CMAKE_COMMAND}" -DCOS_AURORA_SRC=${COS_SWITCH_AURORA_DIR}
-                -DCOS_AURORA_PATCH_DIR=${_dir} -P "${COS_REPO_ROOT}/native/cmake/aurora_apply_patches.cmake"
+                -DCOS_AURORA_PATCH_DIR=${_dir} -DCOS_AURORA_TOUCH=ON -P "${COS_REPO_ROOT}/native/cmake/aurora_apply_patches.cmake"
                 RESULT_VARIABLE _result)
         if (NOT _result EQUAL 0)
             message(FATAL_ERROR "cos_switch: patching Aurora with ${_dir} failed")

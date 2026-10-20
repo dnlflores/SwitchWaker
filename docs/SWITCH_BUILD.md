@@ -46,8 +46,9 @@ Italian; the options menu's *Idioma del juego* / *Game language* fixes one). `--
 another directory (the container sees it where the CMake cache expects `build/switch-native`, so an
 APFS copy of an existing build directory, `cp -cR`, reuses its Dawn objects).
 
-- It builds `localhost/centollos-switch-native-build:2026-10-03` the first time
-  (`scripts/switch/Containerfile.native`: the pinned devkitPro image of the translated port plus
+- It builds `localhost/centollos-switch-native-build:<hash>` the first time, and again whenever the
+  Containerfile changes (the tag is a hash of it, `native_build_image` in `scripts/switch/container.sh`;
+  `scripts/switch/Containerfile.native`: the pinned devkitPro image of the translated port plus
   Debian's clang 19), then configures `switch/native` with devkitPro's Switch toolchain and builds the
   `cos_nro` target in `build/switch-native`.
 - Aurora, Dawn, the SDK (`native/sdk`), Dolphin's DSP HLE and libnx compile with devkitA64's GCC; the
@@ -658,7 +659,8 @@ and in a crash report, `[switch] memory: used N MiB of M MiB` shows the process'
   Resolve the offsets with the ELF of the same build:
 
   ```sh
-  docker run --rm -v "$PWD/build/switch-native:/b" localhost/centollos-switch-native-build:2026-10-03 \
+  source scripts/switch/container.sh
+  docker run --rm -v "$PWD/build/switch-native:/b" "$(native_build_image .)" \
       /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -i -e /b/switchwaker.elf 0x<offset> ...
   ```
 

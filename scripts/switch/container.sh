@@ -22,6 +22,28 @@ container_image_exists() {
     fi
 }
 
+# source_tree_id DIR: a short hash of a checkout's commit and local changes (its diff and untracked
+# files), for build stamps that only see the checkout at a fixed mount path; "untracked" when DIR is
+# not a git checkout.
+source_tree_id() {
+    local dir=$1 sha
+    if command -v sha256sum >/dev/null 2>&1; then sha=(sha256sum); else sha=(shasum -a 256); fi
+    if git -C "$dir" rev-parse --verify -q HEAD >/dev/null 2>&1; then
+        { git -C "$dir" rev-parse HEAD; git -C "$dir" diff HEAD; git -C "$dir" status --porcelain; } |
+            "${sha[@]}" | cut -c1-16
+    else
+        echo untracked
+    fi
+}
+
+# native_build_image ROOT: the Switch build image's tag, a hash of Containerfile.native, so that an edit
+# of it builds a new image instead of reusing the one a machine already has
+native_build_image() {
+    local sha
+    if command -v sha256sum >/dev/null 2>&1; then sha=(sha256sum); else sha=(shasum -a 256); fi
+    echo "localhost/centollos-switch-native-build:$("${sha[@]}" "$1/scripts/switch/Containerfile.native" | cut -c1-12)"
+}
+
 # container_run ENGINE ROOT [run options...] IMAGE COMMAND...
 # Mounts ROOT at /work and runs as the invoking user so build outputs stay
 # owned by them.

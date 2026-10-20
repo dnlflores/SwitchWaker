@@ -179,6 +179,13 @@ mode ([docs/RUNTIME_ASSETS.md](docs/RUNTIME_ASSETS.md): `gen_assets.sh --stubs`,
 the data arrays are read from the player's disc at start-up), which the CI job also builds; the default
 build still compiles the headers generated from your disc.
 
+## iPhone and iPad (in progress)
+
+An experimental native ARM64 app target for iOS / iPadOS 27 lives in `ios/`.
+It includes a disc importer and app-container storage, but the complete game
+build and device gameplay have not yet been verified. Build prerequisites,
+checks and remaining milestones: [docs/IOS.md](docs/IOS.md).
+
 ## Build for the Switch
 
 **Players do not need to build**: the release downloads hold the NRO (built without the disc) and its

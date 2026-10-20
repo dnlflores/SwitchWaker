@@ -41,8 +41,11 @@ set(_dawn_copy "${CMAKE_BINARY_DIR}/dawn-src")
 file(SHA256 "${COS_DKSH_DAWN_SRC}/src/tint/lang/glsl/writer/common/options.h" _opt_hash)
 file(SHA256 "${COS_DKSH_DAWN_SRC}/src/tint/lang/glsl/writer/raise/raise.cc" _raise_hash)
 file(SHA256 "${COS_DKSH_DAWN_SRC}/src/tint/lang/glsl/writer/raise/shader_io.cc" _io_hash)
+# COS_DKSH_DAWN_KEY: build.sh's key of dawn.cmake and switch/dawn/patches (the NRO's switch-dawn-src/<key>),
+# so that any patch change refreshes the copy, not only one that touches the three files hashed here.
+set(COS_DKSH_DAWN_KEY "" CACHE STRING "the Dawn patch set's key (build.sh)")
 # bump the "copy" number when the copy rules below change
-set(_dawn_stamp "copy 3\n${COS_DKSH_DAWN_SRC}\n${_opt_hash}\n${_raise_hash}\n${_io_hash}\n")
+set(_dawn_stamp "copy 3\n${COS_DKSH_DAWN_SRC}\n${COS_DKSH_DAWN_KEY}\n${_opt_hash}\n${_raise_hash}\n${_io_hash}\n")
 set(_dawn_previous "")
 if (EXISTS "${_dawn_copy}.stamp")
     file(READ "${_dawn_copy}.stamp" _dawn_previous)
@@ -106,7 +109,9 @@ add_subdirectory("${_dawn_copy}" "${CMAKE_BINARY_DIR}/dawn" EXCLUDE_FROM_ALL SYS
 # ---- Aurora: the NRO's patched copy, only its GX shader generator (and attr_fmt.cpp) is compiled -----------------------
 set(_aurora_copy "${CMAKE_BINARY_DIR}/aurora")
 set(_aurora_patch_dirs "${COS_REPO_ROOT}/native/patches/aurora" "${COS_REPO_ROOT}/switch/native/aurora/patches")
-set(_aurora_stamp "${COS_DKSH_AURORA_SRC}\n")
+# COS_DKSH_AURORA_ID: build.sh's source_tree_id of the checkout (the container sees it at a fixed path)
+set(COS_DKSH_AURORA_ID "" CACHE STRING "the Aurora checkout's commit and local changes (build.sh)")
+set(_aurora_stamp "${COS_DKSH_AURORA_SRC}\n${COS_DKSH_AURORA_ID}\n")
 foreach (_dir IN LISTS _aurora_patch_dirs)
     file(GLOB _patches CONFIGURE_DEPENDS "${_dir}/*.patch")
     list(SORT _patches)
@@ -124,7 +129,7 @@ if (NOT EXISTS "${_aurora_copy}" OR NOT _aurora_previous STREQUAL _aurora_stamp)
     file(COPY "${COS_DKSH_AURORA_SRC}/" DESTINATION "${_aurora_copy}" PATTERN ".git" EXCLUDE)
     foreach (_dir IN LISTS _aurora_patch_dirs)
         execute_process(COMMAND "${CMAKE_COMMAND}" -DCOS_AURORA_SRC=${_aurora_copy} -DCOS_AURORA_PATCH_DIR=${_dir}
-                -P "${COS_REPO_ROOT}/native/cmake/aurora_apply_patches.cmake" RESULT_VARIABLE _r)
+                -DCOS_AURORA_TOUCH=ON -P "${COS_REPO_ROOT}/native/cmake/aurora_apply_patches.cmake" RESULT_VARIABLE _r)
         if (NOT _r EQUAL 0)
             message(FATAL_ERROR "dksh_cache: patching Aurora with ${_dir} failed")
         endif ()

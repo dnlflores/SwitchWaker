@@ -59,7 +59,7 @@ set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 source "$root/scripts/switch/container.sh"
-image=${COS_SWITCH_NATIVE_IMAGE:-localhost/centollos-switch-native-build:2026-10-03}
+image=${COS_SWITCH_NATIVE_IMAGE:-$(native_build_image "$root")}
 
 aurora="" assets="" runtime_assets=0 recompcore="" dawn_src="" target=cos_nro dk_debug=OFF
 game_id=GZLE01 cos_version=2 build_dir=""
@@ -209,6 +209,7 @@ echo "build_native: game=$game_id renderer=$label version=$version build-dir=$bu
 container_run "$engine" "$root" "${mounts[@]}" -e JOBS="$jobs" -e TARGET="$target" \
     -e DAWN_FLAG="$dawn_flag" -e RUNTIME_FLAG="$runtime_flag" -e VERSION="$version" \
     -e NRO_NAME="$nro_name" -e DK_DEBUG="$dk_debug" -e COS_VERSION="$cos_version" -e GAME_ID="$game_id" \
+    -e AURORA_ID="$(source_tree_id "$aurora")" \
     "$image" bash -lc '
 set -euo pipefail
 export PATH=/opt/devkitpro/devkitA64/bin:/opt/devkitpro/tools/bin:$PATH
@@ -216,7 +217,7 @@ cmake -S /work/switch/native -B /work/build/switch-native -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DDKP_USE_DOUBLE_OBJECT_FILE_EXTENSIONS=ON \
     -DCOS_SWITCH_NRO_NAME="$NRO_NAME" -DCOS_DK_DEBUG_LIB="$DK_DEBUG" -DCOS_SWITCH_VERSION="$VERSION" \
-    -DCOS_SWITCH_AURORA_SOURCE=/inputs/aurora -DCOS_ASSETS_DIR=/inputs/assets \
+    -DCOS_SWITCH_AURORA_SOURCE=/inputs/aurora -DCOS_SWITCH_AURORA_ID="$AURORA_ID" -DCOS_ASSETS_DIR=/inputs/assets \
     -DCOS_RECOMPCORE_DIR=/inputs/recompcore -DCOS_VERSION="$COS_VERSION" -DCOS_GAME_ID="$GAME_ID" \
     $DAWN_FLAG $RUNTIME_FLAG >/dev/null
 cmake --build /work/build/switch-native --target "$TARGET" --parallel "$JOBS"

@@ -93,7 +93,8 @@ if [[ -n $imgui_src ]]; then
     mounts+=(-v "$imgui_src:/inputs/imgui:ro")
     imgui_arg=/inputs/imgui
 fi
-defs=(-DCOS_DKSH_AURORA_SRC=/inputs/aurora -DCOS_DKSH_DAWN_SRC=/inputs/dawn-src)
+defs=(-DCOS_DKSH_AURORA_SRC=/inputs/aurora -DCOS_DKSH_DAWN_SRC=/inputs/dawn-src
+      -DCOS_DKSH_AURORA_ID="$(source_tree_id "$aurora")" -DCOS_DKSH_DAWN_KEY="$dawn_key")
 if [[ -n $fmt_src ]]; then
     mounts+=(-v "$fmt_src:/inputs/fmt:ro")
     defs+=(-DFETCHCONTENT_SOURCE_DIR_FMT=/inputs/fmt)

@@ -35,6 +35,9 @@ uint64_t fnv(const char* s, uint64_t h = 0xCBF29CE484222325ull) {
     return h;
 }
 
+// a stage byte of a record: ShaderStage's values only (a record with another is skipped as unknown)
+bool valid_stage(uint8_t s) { return s == uint8_t(ShaderStage::Vertex) || s == uint8_t(ShaderStage::Fragment); }
+
 void finish(std::vector<uint8_t>* out, uint8_t kind, const std::vector<uint8_t>& payload) {
     uLong crc = crc32(0, &kind, 1);
     crc = crc32(crc, payload.data(), uInt(payload.size()));
@@ -78,12 +81,16 @@ void append_record(std::vector<uint8_t>* out, const DkshModuleRecord& r) {
 
 void append_record(std::vector<uint8_t>* out, const DkshNamedRecord& r) {
     std::vector<uint8_t> p;
+    // the length byte and the bytes written agree (a longer name is cut, not wrapped)
+    const size_t nameLength = std::min<size_t>(r.name.size(), 255);
+    const size_t bindingCount = std::min<size_t>(r.bindings.size(), 255);
     put(&p, uint8_t(r.stage));
-    put(&p, uint8_t(r.name.size()));
-    p.insert(p.end(), r.name.begin(), r.name.begin() + std::min<size_t>(r.name.size(), 255));
+    put(&p, uint8_t(nameLength));
+    p.insert(p.end(), r.name.begin(), r.name.begin() + long(nameLength));
     put(&p, r.glslHash);
-    put(&p, uint8_t(r.bindings.size()));
-    for (const SlotBinding& b : r.bindings) {
+    put(&p, uint8_t(bindingCount));
+    for (size_t k = 0; k < bindingCount; k++) {
+        const SlotBinding& b = r.bindings[k];
         put(&p, uint8_t(b.kind));
         put(&p, b.slot);
         put(&p, uint8_t(b.group));
@@ -118,6 +125,7 @@ bool read_dksh_file(const std::vector<uint8_t>& data, DkshFile* out, std::string
             continue;
         }
         if (kind == kKindShader && size >= 9) {
+            if (!valid_stage(p[0])) continue;
             DkshShaderRecord r;
             r.stage = ShaderStage(p[0]);
             r.glslHash = get<uint64_t>(p + 1);
@@ -126,6 +134,7 @@ bool read_dksh_file(const std::vector<uint8_t>& data, DkshFile* out, std::string
         } else if (kind == kKindModule && size == 24) {
             out->modules.push_back({get<uint64_t>(p), get<uint64_t>(p + 8), get<uint64_t>(p + 16)});
         } else if (kind == kKindNamed && size >= 2) {
+            if (!valid_stage(p[0])) continue;
             DkshNamedRecord r;
             r.stage = ShaderStage(p[0]);
             const size_t n = p[1];
@@ -135,8 +144,12 @@ bool read_dksh_file(const std::vector<uint8_t>& data, DkshFile* out, std::string
             const size_t count = p[2 + n + 8];
             if (size != 2 + n + 9 + 4 * count) continue;
             const uint8_t* b = p + 2 + n + 9;
-            for (size_t k = 0; k < count; k++, b += 4)
+            bool kindsOk = true;
+            for (size_t k = 0; k < count; k++, b += 4) {
+                kindsOk = kindsOk && b[0] <= uint8_t(SlotBinding::Kind::Immediates);
                 r.bindings.push_back({SlotBinding::Kind(b[0]), b[1], b[2], b[3]});
+            }
+            if (!kindsOk) continue;  // the readers index name tables by kind
             out->named.push_back(std::move(r));
         }
         // unknown kinds: skipped (a later version's additions)
@@ -179,6 +192,31 @@ std::string dksh_file_summary(const DkshFileStats& s) {
     return line;
 }
 
+std::string slot_bindings_text(const std::vector<SlotBinding>& bindings) {
+    static const char* const kKinds[] = {"ubo", "ssbo", "sampler", "immediates"};
+    std::string out;
+    for (const SlotBinding& b : bindings) {
+        const size_t kind = size_t(b.kind);
+        out += std::string(out.empty() ? "" : ", ") + (kind < 4 ? kKinds[kind] : "?") + " " + std::to_string(b.slot) +
+               " <- @group(" + std::to_string(b.group) + ") @binding(" + std::to_string(b.binding) + ")";
+    }
+    return out;
+}
+
 uint64_t glsl_hash(const std::string& glsl) { return XXH3_64bits(glsl.data(), glsl.size()); }
+
+bool read_whole_file(const char* path, std::vector<uint8_t>* out) {
+    FILE* f = fopen(path, "rb");
+    if (f == nullptr) return false;
+    bool ok = fseek(f, 0, SEEK_END) == 0;
+    const long size = ok ? ftell(f) : -1;
+    ok = size > 0 && fseek(f, 0, SEEK_SET) == 0;
+    if (ok) {
+        out->resize(size_t(size));
+        ok = fread(out->data(), 1, out->size(), f) == out->size();
+    }
+    fclose(f);
+    return ok;
+}
 
 }  // namespace swdk

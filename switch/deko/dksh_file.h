@@ -88,8 +88,13 @@ struct DkshFileStats {
 };
 DkshFileStats dksh_file_stats(const DkshFile& file, uint64_t expectedCompilerId);
 std::string dksh_file_summary(const DkshFileStats& s);
+// "ubo 0 <- @group(1) @binding(0), sampler 0 <- @group(2) @binding(0)": a named record's slots
+std::string slot_bindings_text(const std::vector<SlotBinding>& bindings);
 
 // XXH3-64 of a GLSL text (the shader records' key)
 uint64_t glsl_hash(const std::string& glsl);
+
+// A whole file (stdio, as on the Switch); false if it cannot be opened or read, or is empty
+bool read_whole_file(const char* path, std::vector<uint8_t>* out);
 
 }  // namespace swdk

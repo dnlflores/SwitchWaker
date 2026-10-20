@@ -73,27 +73,32 @@ void makeDir(const char* path) {
     }
 }
 
-// <directory of the executable>/user and <directory of the executable>/user/cache (or COS_CACHE_DIR);
+// COS_USER_DIR when set (the iOS app container); otherwise <executable directory>/user.
+// Caches default to user/cache, overridable with COS_CACHE_DIR;
 // on the Switch <COS_SWITCH_ROOT>/user (the native port's directory on the SD card, switch/native/source).
 void makeUserPaths(const char* argv0) {
 #if defined(__SWITCH__)
     (void)argv0;
     snprintf(sUserPath, sizeof(sUserPath), "%s/user", COS_SWITCH_ROOT);
 #else
-    char exe[PATH_MAX] = {};
-    executablePath(exe, sizeof(exe));
-    if (exe[0] == '\0' && argv0 != nullptr) {
-        snprintf(exe, sizeof(exe), "%s", argv0);
+    if (const char* userDir = getenv("COS_USER_DIR"); userDir != nullptr && userDir[0] != '\0') {
+        snprintf(sUserPath, sizeof(sUserPath), "%s", userDir);
+    } else {
+        char exe[PATH_MAX] = {};
+        executablePath(exe, sizeof(exe));
+        if (exe[0] == '\0' && argv0 != nullptr) {
+            snprintf(exe, sizeof(exe), "%s", argv0);
+        }
+        char real[PATH_MAX];
+        const char* path = realpath(exe, real) != nullptr ? real : exe;
+        const char* slash = strrchr(path, '/');
+        int dirLen = slash != nullptr ? (int)(slash - path) : 0;
+        if (slash == nullptr) {
+            path = ".";
+            dirLen = 1;
+        }
+        snprintf(sUserPath, sizeof(sUserPath), "%.*s/user", dirLen, path);
     }
-    char real[PATH_MAX];
-    const char* path = realpath(exe, real) != nullptr ? real : exe;
-    const char* slash = strrchr(path, '/');
-    int dirLen = slash != nullptr ? (int)(slash - path) : 0;
-    if (slash == nullptr) {
-        path = ".";
-        dirLen = 1;
-    }
-    snprintf(sUserPath, sizeof(sUserPath), "%.*s/user", dirLen, path);
 #endif
     snprintf(sCachePath, sizeof(sCachePath), "%s/cache", sUserPath);
 #if !defined(__SWITCH__)

@@ -190,7 +190,7 @@ bool read_texture(WGPUTexture texture, std::vector<uint8_t>& pixels, uint32_t& w
         return false;
     }
     pixels.assign(dst.cpu, dst.cpu + size_t(rowBytes) * height);
-    dkMemBlockDestroy(dst.block);
+    swdk::block_free_deferred(dst.block);  // through memory.cpp, which counts the block's bytes
     return true;
 }
 

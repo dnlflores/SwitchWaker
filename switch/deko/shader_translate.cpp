@@ -38,17 +38,76 @@ bool is_texture(RB::ResourceType t) {
            t == RB::ResourceType::kMultisampledTexture || t == RB::ResourceType::kDepthMultisampledTexture;
 }
 
+// Tint's binding numbers for textures and samplers before the post-pass: group * 64 + binding, unique
+// while every binding is below 64
+constexpr uint32_t kBindingsPerGroup = 64;
+
+// An opaque sampler type of GLSL: sampler2D, isampler2D, usampler2DArray, sampler2DShadow, samplerCube...
+bool is_sampler_type(const std::string& t) {
+    const size_t at = t[0] == 'i' || t[0] == 'u' ? 1 : 0;
+    return t.compare(at, 7, "sampler") == 0;
+}
+
+// "uniform [precision] <sampler type> <name>;" -> true, *name. The words of the line, as Tint's GLSL
+// writer emits a combined sampler at global scope (one space between words, no layout()).
+bool sampler_declaration(const std::string& line, std::string* name) {
+    if (line.rfind("uniform ", 0) != 0 || line.size() < 2 || line.back() != ';') return false;
+    std::istringstream words(line.substr(0, line.size() - 1));
+    std::vector<std::string> w;
+    for (std::string word; words >> word;) w.push_back(word);
+    const bool precision = w.size() == 4 && (w[1] == "highp" || w[1] == "mediump" || w[1] == "lowp");
+    if (!(w.size() == 3 || precision)) return false;
+    if (!is_sampler_type(w[precision ? 2 : 1])) return false;
+    *name = w.back();
+    return true;
+}
+
+// a line that declares a sampler uniform in another shape than sampler_declaration's
+bool unhandled_sampler_uniform(const std::string& line) {
+    if (line.find('{') != std::string::npos) return false;  // a uniform block
+    std::istringstream words(line);
+    bool uniform = false, sampler = false;
+    for (std::string word; words >> word;) {
+        uniform = uniform || word == "uniform";
+        sampler = sampler || is_sampler_type(word);
+    }
+    return uniform && sampler;
+}
+
 }  // namespace
 
 void translate_init() { tint::Initialize(); }
+
+namespace {
+// file: kept alive with the program (its diagnostics refer to it)
+tint::Program parse_wgsl(const tint::Source::File& file) {
+    tint::wgsl::reader::Options readerOptions;
+    readerOptions.allowed_features = tint::wgsl::AllowedFeatures::Everything();
+    return tint::wgsl::reader::Parse(&file, readerOptions);
+}
+}  // namespace
+
+std::vector<EntryPoint> wgsl_entry_points(const std::string& wgsl, std::string* error) {
+    std::vector<EntryPoint> out;
+    tint::Source::File file("shader.wgsl", wgsl);
+    tint::Program program = parse_wgsl(file);
+    if (!program.IsValid()) {
+        *error = "WGSL: " + program.Diagnostics().Str();
+        return out;
+    }
+    tint::inspector::Inspector inspector(program);
+    for (const auto& ep : inspector.GetEntryPoints()) {
+        if (ep.stage == tint::inspector::PipelineStage::kVertex) out.push_back({ShaderStage::Vertex, ep.name});
+        if (ep.stage == tint::inspector::PipelineStage::kFragment) out.push_back({ShaderStage::Fragment, ep.name});
+    }
+    return out;
+}
 
 TranslateResult wgsl_to_glsl(const std::string& wgsl, const std::string& entryPoint, ShaderStage stage,
                              BindingScheme scheme) {
     TranslateResult r;
     tint::Source::File file("shader.wgsl", wgsl);
-    tint::wgsl::reader::Options readerOptions;
-    readerOptions.allowed_features = tint::wgsl::AllowedFeatures::Everything();
-    tint::Program program = tint::wgsl::reader::Parse(&file, readerOptions);
+    tint::Program program = parse_wgsl(file);
     if (!program.IsValid()) {
         r.error = "WGSL: " + program.Diagnostics().Str();
         return r;
@@ -91,6 +150,11 @@ TranslateResult wgsl_to_glsl(const std::string& wgsl, const std::string& entryPo
     uint32_t nextUbo = 0, nextSsbo = 0;
     for (const RB& res : resources) {
         const BindingPoint wgslBp{res.bind_group, res.binding};
+        if (res.binding >= kBindingsPerGroup) {
+            r.error = "binding " + std::to_string(res.binding) + " of " + res.variable_name + " is not below " +
+                      std::to_string(kBindingsPerGroup);
+            return r;
+        }
         if (is_uniform(res.resource_type) || is_storage(res.resource_type)) {
             const bool ubo = is_uniform(res.resource_type);
             uint32_t slot;
@@ -110,9 +174,9 @@ TranslateResult wgsl_to_glsl(const std::string& wgsl, const std::string& entryPo
                                   res.bind_group, res.binding});
         } else if (is_texture(res.resource_type)) {
             // the post-remapping number only names the pair below; uam sees the post-pass binding
-            options.bindings.texture.emplace(wgslBp, BindingPoint{0, res.bind_group * 64 + res.binding});
+            options.bindings.texture.emplace(wgslBp, BindingPoint{0, res.bind_group * kBindingsPerGroup + res.binding});
         } else if (res.resource_type == RB::ResourceType::kSampler) {
-            options.bindings.sampler.emplace(wgslBp, BindingPoint{0, res.bind_group * 64 + res.binding});
+            options.bindings.sampler.emplace(wgslBp, BindingPoint{0, res.bind_group * kBindingsPerGroup + res.binding});
         } else {
             r.error = "unsupported resource " + res.variable_name;
             return r;
@@ -130,6 +194,7 @@ TranslateResult wgsl_to_glsl(const std::string& wgsl, const std::string& entryPo
     });
     std::vector<SamplerSlot> samplerSlots;
     uint32_t nextSampler = 0;
+    uint32_t usedSlots = 0;  // bit per combined sampler slot
     for (const auto& pair : pairs) {
         const BindingPoint tex = pair.texture_binding_point, smp = pair.sampler_binding_point;
         uint32_t slot;
@@ -143,10 +208,18 @@ TranslateResult wgsl_to_glsl(const std::string& wgsl, const std::string& entryPo
                       std::to_string(tex.binding) + ")";
             return r;
         }
-        const BindingPoint texRemapped{0, tex.group * 64 + tex.binding};
+        // GX: one slot per texture map. The same texture with two samplers (or sampled and also read with
+        // textureLoad) would make two GLSL samplers on one slot, and the renderer binds one descriptor there.
+        if (usedSlots & (1u << slot)) {
+            r.error = "texture @group(" + std::to_string(tex.group) + ") @binding(" + std::to_string(tex.binding) +
+                      ") is used with more than one sampler: one slot (" + std::to_string(slot) + ") for both";
+            return r;
+        }
+        usedSlots |= 1u << slot;
+        const BindingPoint texRemapped{0, tex.group * kBindingsPerGroup + tex.binding};
         const BindingPoint smpRemapped = smp.group == kPlaceholderSamplerGroup
                                              ? options.placeholder_sampler_bind_point
-                                             : BindingPoint{0, smp.group * 64 + smp.binding};
+                                             : BindingPoint{0, smp.group * kBindingsPerGroup + smp.binding};
         const std::string name = sampler_name(slot);
         options.sampler_texture_to_name.emplace(
             tint::glsl::writer::CombinedTextureSamplerPair{texRemapped, smpRemapped, false}, name);
@@ -187,21 +260,22 @@ bool post_pass(std::string* glsl, const std::vector<SamplerSlot>& samplerSlots, 
     out.reserve(glsl->size() + 256);
     while (std::getline(in, line)) {
         // "uniform highp sampler2D cos_tex0;" (also isampler2D, usampler2D, sampler2DShadow, ...)
-        const size_t u = line.find("uniform ");
-        const size_t sp = line.find("sampler");
-        if (u != std::string::npos && sp != std::string::npos && line.find("layout(") == std::string::npos &&
-            line.find('{') == std::string::npos && !line.empty() && line.back() == ';') {
-            const size_t nameEnd = line.size() - 1;
-            const size_t nameStart = line.find_last_of(' ', nameEnd) + 1;
-            const std::string name = line.substr(nameStart, nameEnd - nameStart);
+        std::string name;
+        if (sampler_declaration(line, &name)) {
             auto it = slots.find(name);
             if (it == slots.end()) {
                 *error = "no slot for sampler " + name;
                 return false;
             }
-            out += line.substr(0, u) + "layout(binding = " + std::to_string(it->second) + ") " + line.substr(u) +
-                   "\n";
+            out += "layout(binding = " + std::to_string(it->second) + ") " + line + "\n";
             continue;
+        }
+        // Any other sampler uniform (indented, with a layout() of Tint's binding number group * 64 + binding,
+        // ...) would reach uam without its slot, which then defaults to binding 0: refused, so that a later
+        // Tint's output cannot slip through.
+        if (unhandled_sampler_uniform(line)) {
+            *error = "unexpected sampler declaration: " + line;
+            return false;
         }
         // Dual-source blending: Tint asks for the ES extension even for desktop GLSL, where
         // layout(index = 1) is core (GL 3.3); uam refuses the extension name.

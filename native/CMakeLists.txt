@@ -83,7 +83,7 @@ if (COS_ASAN)
     message(STATUS "cos_native: COS_ASAN (AddressSanitizer on every target)")
 endif ()
 
-if (APPLE AND NOT CMAKE_OSX_SYSROOT)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND NOT CMAKE_OSX_SYSROOT)
     # If the Xcode SDK is lagging behind the system version, CMake needs this done first
     execute_process(COMMAND xcrun --sdk macosx --show-sdk-path
             OUTPUT_VARIABLE CMAKE_OSX_SYSROOT

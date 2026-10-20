@@ -27,27 +27,12 @@ constexpr const char* kCachePath = COS_SWITCH_NRO_DIR "/initial_dksh_cache.bin";
 std::unordered_map<std::string, NamedShader> g_named;
 char g_status[160] = "not loaded";
 
-bool read_whole(const char* path, std::vector<uint8_t>* out) {
-    FILE* f = fopen(path, "rb");
-    if (f == nullptr) return false;
-    fseek(f, 0, SEEK_END);
-    const long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    bool ok = size > 0;
-    if (ok) {
-        out->resize(size_t(size));
-        ok = fread(out->data(), 1, out->size(), f) == out->size();
-    }
-    fclose(f);
-    return ok;
-}
-
 }  // namespace
 
 void shader_cache_init(uint32_t gxConfigVersion) {
     const uint64_t t0 = now_ns();
     std::vector<uint8_t> data;
-    if (!read_whole(kCachePath, &data)) {
+    if (!read_whole_file(kCachePath, &data)) {
         dklog("shader cache: no %s: no precompiled shaders (scripts/switch/build_native.sh --renderer deko3d writes it "
               "next to the NRO; push.sh and make_sd.sh copy it)",
               kCachePath);
@@ -101,12 +86,7 @@ void shader_cache_init(uint32_t gxConfigVersion) {
             dklog("shader cache: no %s (the test pattern is drawn without it)", name);
             continue;
         }
-        std::string slots;
-        static const char* kinds[] = {"ubo", "ssbo", "sampler", "immediates"};
-        for (const SlotBinding& b : it->second.bindings) {
-            slots += (slots.empty() ? "" : ", ") + std::string(kinds[int(b.kind) & 3]) + " " + std::to_string(b.slot) +
-                     " <- @group(" + std::to_string(b.group) + ") @binding(" + std::to_string(b.binding) + ")";
-        }
+        const std::string slots = slot_bindings_text(it->second.bindings);
         dklog("shader cache: %s: %s", name, slots.empty() ? "no bindings" : slots.c_str());
     }
     snprintf(g_status, sizeof g_status, "%zu DKSH loaded in %.0f ms from initial_dksh_cache.bin", loaded,

@@ -543,6 +543,9 @@ void draw_clear(const DrawCommand& cmd, uint32_t tw, uint32_t th) {
 uint32_t level_size(uint32_t size, uint32_t level) { return std::max(size >> level, 1u); }
 
 void upload(const TextureUpload& u) {
+    // an oversized upload's own block: freed once the GPU has finished this frame, so before any early
+    // return below (the copy recorded at the end still reads it)
+    if (u.dkBlock) swdk::block_free_deferred(static_cast<DkMemBlock>(u.dkBlock));
     Tex* t = find_texture(u.tex.texture.Get());
     if (!t || !t->valid) return;
     if (u.buffer && !u.dkGpu) {
@@ -563,7 +566,6 @@ void upload(const TextureUpload& u) {
     const DkImageRect rect = {u.tex.origin.x, u.tex.origin.y, u.tex.origin.z, w, h,
                               std::max<uint32_t>(u.size.depthOrArrayLayers, 1)};
     dkCmdBufCopyBufferToImage(R.cmd, &buf, &view, &rect, swdk::C.flipTexture ? uint32_t(DkBlitFlag_FlipY) : 0u);
-    if (u.dkBlock) swdk::block_free_deferred(static_cast<DkMemBlock>(u.dkBlock));
     g_stats.uploads++;
     g_stats.uploadBytes += uint64_t(rowBytes) * rows;
 }

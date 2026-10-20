@@ -44,7 +44,7 @@ set(AURORA_ENABLE_TESTS OFF CACHE BOOL "Enable tests")
 # source build and no Rust needed. (Aurora's "auto" would build nod from source with Rust on
 # linux-aarch64, although its release has that package.) On other hosts Aurora's own "auto"
 # resolution applies.
-if ((APPLE AND CMAKE_OSX_ARCHITECTURES STREQUAL "arm64") OR
+if ((CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_OSX_ARCHITECTURES STREQUAL "arm64") OR
         (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|aarch64|arm64)$"))
     set(AURORA_DAWN_PROVIDER "package" CACHE STRING
             "How to provide Dawn: auto, vendor (build from source), system (find_package/imported), package (download prebuilt)")

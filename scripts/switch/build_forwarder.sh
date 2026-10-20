@@ -33,7 +33,7 @@ set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 source "$root/scripts/switch/container.sh"
-image=${COS_SWITCH_NATIVE_IMAGE:-localhost/centollos-switch-native-build:2026-10-03}
+image=${COS_SWITCH_NATIVE_IMAGE:-$(native_build_image "$root")}
 
 title_id=${COS_FORWARDER_TITLE_ID:-01ff43454e540000}
 title_id=$(printf '%s' "${title_id#0x}" | tr 'A-F' 'a-f')

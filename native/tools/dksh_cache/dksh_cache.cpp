@@ -226,33 +226,6 @@ std::string self_exe(const char* argv0) {
 }
 
 // ---- fixed shaders -----------------------------------------------------------------------------------
-// "@vertex fn vs_main(" / "@fragment\nfn fs_opaque(": the module's entry points in source order
-std::vector<std::pair<ShaderStage, std::string>> entry_points(const std::string& wgsl) {
-    std::vector<std::pair<ShaderStage, std::string>> out;
-    for (const char* attr : {"@vertex", "@fragment"}) {
-        size_t at = 0;
-        while ((at = wgsl.find(attr, at)) != std::string::npos) {
-            at += strlen(attr);
-            size_t fn = wgsl.find("fn ", at);
-            if (fn == std::string::npos) break;
-            fn += 3;
-            const size_t end = wgsl.find('(', fn);
-            if (end == std::string::npos) break;
-            out.emplace_back(attr[1] == 'v' ? ShaderStage::Vertex : ShaderStage::Fragment, wgsl.substr(fn, end - fn));
-        }
-    }
-    return out;
-}
-
-std::string bindings_text(const std::vector<SlotBinding>& bindings) {
-    static const char* kinds[] = {"ubo", "ssbo", "sampler", "immediates"};
-    std::string out;
-    for (auto& b : bindings)
-        out += std::string(out.empty() ? "" : ", ") + kinds[int(b.kind)] + " " + std::to_string(b.slot) +
-               " <- @group(" + std::to_string(b.group) + ") @binding(" + std::to_string(b.binding) + ")";
-    return out;
-}
-
 // The fixed shaders' DKSH as a C table to embed in the NRO: one array per distinct DKSH and
 // {name, stage, dksh, size} rows (the bindings are in the cache file's named records and the report).
 std::string fixed_table(const std::vector<DkshNamedRecord>& named,
@@ -275,7 +248,7 @@ std::string fixed_table(const std::vector<DkshNamedRecord>& named,
         auto it = shaders.find({uint8_t(n.stage), n.glslHash});
         if (it == shaders.end() || it->second.dksh.empty()) continue;
         inc += "    {\"" + n.name + "\", " + std::to_string(int(n.stage)) + ", kDksh_" + hex(n.glslHash) + ", " +
-               std::to_string(it->second.dksh.size()) + "},  // " + bindings_text(n.bindings) + "\n";
+               std::to_string(it->second.dksh.size()) + "},  // " + slot_bindings_text(n.bindings) + "\n";
     }
     inc += "};\n";
     return inc;
@@ -290,7 +263,17 @@ std::vector<FixedStage> translate_fixed(const std::vector<fs::path>& files) {
     std::vector<FixedStage> out;
     for (const auto& in : files) {
         const std::string wgsl = read_text(in);
-        for (const auto& [stage, ep] : entry_points(wgsl)) {
+        std::string parseError;
+        const std::vector<EntryPoint> entries = wgsl_entry_points(wgsl, &parseError);
+        if (!parseError.empty()) {
+            // one failed stage for the file: its entry points are not known
+            FixedStage f;
+            f.named.name = in.stem().string();
+            f.error = parseError;
+            out.push_back(std::move(f));
+            continue;
+        }
+        for (const auto& [stage, ep] : entries) {
             FixedStage f;
             f.named.stage = stage;
             f.named.name = in.stem().string() + "." + ep;
@@ -607,7 +590,7 @@ int build(const char* argv0, const std::string& dbPath, const fs::path& outPath,
                  fixedStages.size(), incPath.c_str());
         for (auto& n : named)
             rep.line("  %-40s %s  [%s]", n.name.c_str(), compiled(n.stage, n.glslHash) ? "ok" : "FAILED",
-                     bindings_text(n.bindings).c_str());
+                     slot_bindings_text(n.bindings).c_str());
     }
     rep.line("DKSH: %zu bytes (%.2f MiB), mean %zu, max %zu per shader; %s: %zu bytes (%.2f MiB)", dkshBytes,
              double(dkshBytes) / 1048576.0, (ok[0] + ok[1]) ? dkshBytes / (ok[0] + ok[1]) : 0, maxBytes,
@@ -653,7 +636,7 @@ int fixed(const fs::path& outPath, const std::vector<fs::path>& inputs) {
         const double ms = ms_since(t0);
         const bool ok = r.ok && !r.dksh.empty();
         printf("%-40s %s %6.1f ms %6zu bytes  [%s]\n", f.named.name.c_str(), ok ? "ok    " : "FAILED", ms,
-               r.dksh.size(), bindings_text(f.named.bindings).c_str());
+               r.dksh.size(), slot_bindings_text(f.named.bindings).c_str());
         for (auto& l : lines_of(r.log)) printf("    %s\n", l.c_str());
         if (!ok) {
             failures++;
@@ -758,7 +741,7 @@ int check(const fs::path& in, std::vector<std::string> names) {
         for (const auto& n : f.named)
             if (n.name == name) found = &n;
         printf("  %-28s %s%s%s\n", name.c_str(), found ? "present" : "MISSING", found ? ": " : "",
-               found ? bindings_text(found->bindings).c_str() : "");
+               found ? slot_bindings_text(found->bindings).c_str() : "");
         ok = ok && found;
     }
     printf("check: %s\n", ok ? "OK" : "FAILED");

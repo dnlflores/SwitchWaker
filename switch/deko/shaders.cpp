@@ -20,6 +20,7 @@
 #include "dk.h"
 
 #include <pthread.h>
+#include <sys/stat.h>
 #include <switch.h>
 
 #include <algorithm>
@@ -191,15 +192,11 @@ void start_worker() {
 
 // dksh_local.bin: its records into the registry (loaded into code memory as the initial cache's)
 void read_local(uint32_t gxConfigVersion) {
-    FILE* f = fopen(kLocalPath, "rb");
     const uint64_t expected = dksh_compiler_id(gxConfigVersion);
-    if (f) {
-        fseek(f, 0, SEEK_END);
-        const long size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        std::vector<uint8_t> data(size > 0 ? size_t(size) : 0);
-        const bool read = size > 0 && fread(data.data(), 1, data.size(), f) == data.size();
-        fclose(f);
+    struct stat st;
+    if (stat(kLocalPath, &st) == 0) {
+        std::vector<uint8_t> data;
+        const bool read = read_whole_file(kLocalPath, &data);
         DkshFile file;
         std::string error;
         if (read && read_dksh_file(data, &file, &error) && file.compilerId == expected) {

@@ -54,3 +54,11 @@ endforeach ()
 if (COS_AURORA_PATCH_HASH)
     file(WRITE "${_stamp}" "${COS_AURORA_PATCH_HASH}\n")
 endif ()
+# COS_AURORA_TOUCH (a caller that has just copied the tree): every file gets the current time. file(COPY)
+# keeps the source's times, so a file a removed or narrowed patch no longer changes comes back older than
+# the objects built from its patched version, and Ninja would keep them. Only for a fresh copy: a rerun on
+# the same tree would rebuild all of Aurora.
+if (COS_AURORA_TOUCH)
+    file(GLOB_RECURSE _files LIST_DIRECTORIES false "${COS_AURORA_SRC}/*")
+    file(TOUCH_NOCREATE ${_files})
+endif ()

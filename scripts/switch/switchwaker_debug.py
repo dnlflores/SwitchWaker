@@ -72,6 +72,9 @@ def default_host():
 
 
 def quote(arg):
+    # one command per line, quotes not escaped: an argument with either would change the command sent
+    if any(ch in arg for ch in '"\r\n'):
+        raise ValueError(f"argument {arg!r}: quotes and line breaks cannot be sent")
     return f'"{arg}"' if (" " in arg or not arg) else arg
 
 
@@ -227,30 +230,40 @@ def cmd_put(args):
         c.close()
 
 
-def cmd_get(args):
-    local = args.local or Path(args.remote).name
+def download(args, local, *command, timeout):
+    """A command's reply into the file local, written as local.part and renamed once complete: a cut
+    connection leaves no truncated file under the final name (crashes --fetch skips existing files)."""
+    part = f"{local}.part"
     c = connect(args)
     try:
-        with open(local, "wb") as f:
-            c.command("get", args.remote, out=f, timeout=120.0)
-    except ServerError:
-        os.remove(local)
-        raise
+        with open(part, "wb") as f:
+            c.command(*command, out=f, timeout=timeout)
+        os.replace(part, local)
     finally:
         c.close()
+        if os.path.exists(part):
+            os.remove(part)
+
+
+def cmd_get(args):
+    local = args.local or Path(args.remote).name
+    download(args, local, "get", args.remote, timeout=120.0)
     print(f"{args.remote} -> {local} ({os.path.getsize(local)} bytes)")
 
 
 def wait_server(args, seconds):
     end = time.time() + seconds
     while time.time() < end:
+        c = None
         try:
             c = Conn(args.host, args.port, timeout=2.0)
             c.command("ping", timeout=5.0)
-            c.close()
             return True
         except (OSError, ServerError, ValueError):
             time.sleep(1.0)
+        finally:
+            if c is not None:
+                c.close()
     return False
 
 
@@ -302,15 +315,7 @@ def cmd_deploy(args):
 
 def cmd_shot(args):
     out = args.out or time.strftime("shot_%Y%m%d_%H%M%S.png")
-    c = connect(args)
-    try:
-        with open(out, "wb") as f:
-            c.command("shot", *(["game"] if args.game else []), out=f, timeout=40.0)
-    except ServerError:
-        os.remove(out)
-        raise
-    finally:
-        c.close()
+    download(args, out, "shot", *(["game"] if args.game else []), timeout=40.0)
     print(out)
 
 

@@ -488,7 +488,16 @@ mv -f "$tmp" "$db"
     echo "total $(sqlite3 "$db" 'SELECT COUNT(*) FROM pipeline_cache') rows, $(wc -c < "$db" | tr -d ' ') bytes: $db"
 } >> "$report"
 if [ "$default_out" = 1 ]; then
+    # The committed file ships to players: a run that failed or skipped tiers (--no-*) records fewer rows,
+    # and the copy would drop the others. Say so loudly; git shows the rest before it is committed.
+    old_rows=0
+    [ -f "$committed" ] && old_rows=$(sqlite3 "$committed" 'SELECT COUNT(*) FROM pipeline_cache' 2>/dev/null || echo 0)
+    new_rows=$(sqlite3 "$db" 'SELECT COUNT(*) FROM pipeline_cache')
     cp -f "$db" "$committed"
     echo "copied to $committed (commit it)" >> "$report"
+    if [ "$new_rows" -lt "$old_rows" ]; then
+        echo "WARNING: $committed now has $new_rows rows, the committed version $old_rows: check the runs above" \
+            "(or rebuild with --merge-from the committed file) before committing it" >> "$report"
+    fi
 fi
 cat "$report"

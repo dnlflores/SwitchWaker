@@ -139,7 +139,8 @@ while read -r status rest; do
     if [ "$status" = ok ]; then report "run:$name" ok "${rest#"$name"}"; else report "run:$name" FAIL "${rest#"$name"}"; fi
 done < <(sort -k2 "$out/runs.txt")
 
-pkill -f "$build/switchwaker" 2>/dev/null
+# (no pkill here: every run above was waited for, and run.sh kills its own game on exit; a pkill of the
+# build's binary would also end an interactive session or another sweep on the same build directory)
 echo
 if [ "$fail" = 0 ]; then
     echo "regress: all checks passed"

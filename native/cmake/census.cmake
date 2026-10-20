@@ -28,7 +28,7 @@
 # macOS only: it relies on ld64 bundles and the Xcode nm/otool. Not part of `all`.
 include_guard(GLOBAL)
 
-if (NOT APPLE)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     message(STATUS "cos_native: link census disabled (it needs macOS ld64, nm and otool)")
     return()
 endif ()

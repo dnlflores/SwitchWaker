@@ -244,7 +244,10 @@ void frame_begin(uint64_t frame) {
     }
     s.retired.clear();
     for (DkMemBlock b : s.retiredBlocks) {
-        g_stats.blockBytes -= dkMemBlockGetSize(b);
+        {
+            std::lock_guard<std::mutex> lock(g_heapMutex);  // block_create counts under it (any thread)
+            g_stats.blockBytes -= dkMemBlockGetSize(b);
+        }
         dkMemBlockDestroy(b);
     }
     s.retiredBlocks.clear();
@@ -491,8 +494,8 @@ bool code_load(DkShader& shader, const void* dksh, uint32_t size, const char* na
         dklog("shader %s (%u bytes of DKSH) is not valid", name, size);
         return false;
     }
+    // (MemoryStats::codeBytes is read from g_codeUsed by memory_stats_take: g_stats belongs to g_heapMutex)
     g_codeUsed = at + size;
-    g_stats.codeBytes = g_codeUsed;
     g_codeWritten.store(true, std::memory_order_release);
     return true;
 }

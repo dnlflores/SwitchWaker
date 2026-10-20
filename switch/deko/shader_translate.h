@@ -74,13 +74,21 @@ struct TranslateResult {
 // once per process, before the first translate (tint::Initialize)
 void translate_init();
 
+// The vertex and fragment entry points of a WGSL module, in declaration order (Tint's inspector;
+// compute entry points are left out). Empty, with why in *error, when the module does not parse.
+struct EntryPoint {
+    ShaderStage stage = ShaderStage::Vertex;
+    std::string name;
+};
+std::vector<EntryPoint> wgsl_entry_points(const std::string& wgsl, std::string* error);
+
 // One entry point of a WGSL module. Never throws; failures come back in error.
 TranslateResult wgsl_to_glsl(const std::string& wgsl, const std::string& entryPoint, ShaderStage stage,
                              BindingScheme scheme);
 
 // The post-pass alone (exposed for tests): rewrites Tint's GLSL as described above. samplerSlots maps
 // the combined sampler names Tint emitted to their slots. Returns false (why in *error) when a sampler
-// has no slot or an immediates declaration has an unexpected shape.
+// has no slot, a sampler uniform or an immediates declaration has an unexpected shape.
 struct SamplerSlot {
     std::string name;
     uint32_t slot = 0;
