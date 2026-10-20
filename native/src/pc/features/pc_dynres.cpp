@@ -1,5 +1,4 @@
-// Dynamic resolution of the 3D scene (native/include/pc/pc_dynres.h; docs/SWITCH_PERF_STUDY.md,
-// section 8): the painter renders the 3D part of a frame into the top-left part of the EFB through
+// Dynamic resolution of the 3D scene (native/include/pc/pc_dynres.h): the painter renders the 3D part of a frame into the top-left part of the EFB through
 // Aurora's content scale (native/patches/aurora/0009), copies that part and draws it stretched
 // over the whole EFB, then the 2D at the full resolution. The level follows the GPU timer.
 #include "pc/pc_dynres.h"
@@ -23,9 +22,6 @@
 
 #include "JSystem/JKernel/JKRHeap.h"
 
-#if defined(__SWITCH__)
-#include "cos_switch.h"
-#endif
 
 extern "C" int pc_fps60_test(void); // pc_frame.cpp (game_hooks.h): the 60 fps mode is on
 
@@ -133,11 +129,7 @@ void initWith(const char* v, float base) {
                "GPU p95, up under %.1f ms predicted (60 fps: %.1f / %.1f ms)\n",
                s.mode == Mode::Fixed ? "fixed" : s.with60 ? "auto while 60 fps is on (COS_DYNRES=auto)" : "auto",
                levels.c_str(),
-#if defined(__SWITCH__)
-               "",
-#else
                s.mode == Mode::Auto && s.cycle == 0 ? " (no GPU timer here: stays at the base)" : "",
-#endif
                s.highMs, s.lowMs, s.highMs60, s.lowMs60);
 }
 
@@ -260,22 +252,6 @@ void pc_dynres_frame_begin(unsigned int frame) {
             }
         }
     }
-#if defined(__SWITCH__)
-    // GPU frames read back and their GPU time: Dawn GL's timer or the deko3d timestamps
-    // (cos_switch_stats.cpp fills the same fields for both NROs)
-    CosSwitchGfxStats g{};
-    cos_switch_gfx_stats(&g);
-    const uint64_t frames = g.gpuFrames, ns = g.gpuTotalNs;
-    if (frames > s.lastGpuFrames && s.lastGpuFrames != 0) {
-        const double ms = (double)(ns - s.lastGpuNs) / 1e6 / (double)(frames - s.lastGpuFrames);
-        s.gpuMs[s.gpuPos] = ms;
-        s.gpuPos = (s.gpuPos + 1) % s.gpuMs.size();
-        s.samples++;
-        s.sinceEval++;
-    }
-    s.lastGpuFrames = frames;
-    s.lastGpuNs = ns;
-#endif
     // The samples above are taken in every mode (pc_dynres_gpu_limited reads them); only Auto moves.
     if (!active) {
         return;

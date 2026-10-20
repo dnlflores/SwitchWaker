@@ -1,9 +1,7 @@
 /*
  * pc_gpu_opts.h - the mist at a lower resolution, the depth-of-field switch and the GPU-group
- * diagnostics of the native port (docs/SWITCH_PERF_STUDY.md; native/src/pc/features/pc_gpu_opts.cpp).
- * The lower-resolution sky and the offscreen shadow casters were removed once the deko3d renderer
- * made them pointless (docs/DEKO3D_MIGRATION_PLAN.md, phase 4); the mist stayed: at full resolution
- * it cost 12.9 ms of GPU a frame in the Tower of the Gods (90 sprites).
+ * diagnostics of the native port (native/src/pc/features/pc_gpu_opts.cpp). The mist at full
+ * resolution cost 12.9 ms of GPU a frame in the Tower of the Gods (90 sprites), as measured on the Switch.
  *
  * COS_MIST_LOWRES=<n>    (default 4; 0 = off; [dev] only, no menu row) the mist (drawCloudShadow,
  *                         d_kankyo_rain.cpp: up to 100 blended sprites with no depth test, many screens
@@ -19,7 +17,7 @@
  *                         the half-size colour copy (two EFB pass breaks and their conversion
  *                         passes) and the full-screen composite. For measurement.
  *
- * Diagnostics (docs/SWITCH_PERF_STUDY.md, section 8):
+ * Diagnostics:
  * COS_GPU_GROUPS=1        the painter inserts a GX debug marker before each draw-list bucket and
  *                         effect (sky, BG, opaque, translucent, particles, DOF, 2D, ...); the
  *                         Switch's GPU timer (dawn-switch-gl-gpu-groups.patch) times the draws

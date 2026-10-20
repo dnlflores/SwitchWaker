@@ -3,8 +3,8 @@
 ## What it is
 
 SwitchWaker is an unofficial native port of a 2002 GameCube adventure game (disc ID `GZLE01`, USA,
-revision 0, the reference; and `GZLP01`, Europe, revision 0, with its five languages) to the Mac,
-Linux and the Switch (homebrew). The game is compiled from its decompilation
+revision 0, the reference; and `GZLP01`, Europe, revision 0, with its five languages) to iPhone and
+iPad (in progress), the Mac and Linux. The game is compiled from its decompilation
 (the [`game/`](game/README.md) folder) and drawn with [Aurora](https://github.com/encounter/aurora);
 there is no CPU emulation.
 
@@ -20,8 +20,7 @@ their work; this repository adds the layer that runs it on new hardware.
   the functions still missing, with AI-assisted decompilation (in its author's words). `game/` was
   imported from it; units that zeldaret has since matched are taken from zeldaret again.
 - **[encounter/aurora](https://github.com/encounter/aurora)**: the GameCube SDK reimplemented over
-  WebGPU (Dawn), which draws the game and reads the controllers on every platform, the Switch
-  included (with encounter's Dawn fork for it).
+  WebGPU (Dawn), which draws the game and reads the controllers on every platform.
 - **[Dusklight](https://github.com/TwilitRealm/dusklight)** (TwilitRealm): the native port of a
   sibling game on Aurora; the model for this project's SDK layer, and CC0 helper code.
 - **[BetterWW](https://github.com/WideBoner/betterww)** (WideBoner) and
@@ -32,12 +31,6 @@ their work; this repository adds the layer that runs it on new hardware.
 - **[elliotttate/Wind-Waker-Recomp](https://github.com/elliotttate/Wind-Waker-Recomp)** and
   **[RecompCore](https://github.com/elliotttate/RecompCore)**: the static recompilation this work
   started from, and the DSP adapter.
-- **[devkitPro](https://devkitpro.org)**, **[libnx](https://github.com/switchbrew/libnx)** and
-  **[deko3d](https://github.com/devkitPro/deko3d)** with uam (whose shader compiler comes from
-  **[Mesa](https://mesa3d.org)**): the Switch toolchain and its GPU API.
-- **[nx-hbloader](https://github.com/switchbrew/nx-hbloader)**,
-  **[hacBrewPack](https://github.com/TooTallNate/hacBrewPack)** and
-  **[hactool](https://github.com/SciresM/hactool)**: the HOME-menu forwarder.
 
 If you enjoy this port, the decompilation projects above are where the credit belongs. Every
 component and its license: [THIRD_PARTY.md](THIRD_PARTY.md).
@@ -140,40 +133,36 @@ switches between fullscreen and the window while the game runs.
 
 ## Build with Docker (any OS)
 
-`scripts/docker/build.sh` builds the Linux binary and/or the Switch NRO entirely in containers, on
+`scripts/docker/build.sh` builds the Linux binary entirely in containers, on
 Linux, macOS, or Windows (in a WSL 2 shell, with Docker Desktop's WSL integration or Podman). The
 host needs only bash, git and Docker or Podman; the disc is bind-mounted read-only and never
 copied into an image.
 
 ```sh
-scripts/docker/build.sh linux  --disc /path/to/GZLE01.iso   # build/native-linux/switchwaker
-scripts/docker/build.sh switch --disc /path/to/GZLE01.iso   # build/switch-native/switchwaker.nro
-scripts/docker/build.sh switch --disc /path/to/GZLP01.iso   # build/switch-native-eur/switchwaker-eur.nro
-scripts/docker/build.sh all    --disc /path/to/GZLE01.iso --test   # both, plus headless checks
+scripts/docker/build.sh linux --disc /path/to/GZLE01.iso          # build/native-linux/switchwaker
+scripts/docker/build.sh linux --disc /path/to/GZLE01.iso --test   # plus headless checks
 ```
 
 The Linux binary is built for the container's architecture, which is the host's (x86_64 on a PC,
 aarch64 on Apple silicon); `--platform linux/amd64` builds the other one under emulation. The disc
-decides the version (GZLP01: `build/native-linux-eur`, `build/switch-native-eur`). The asset
+decides the version (GZLP01: `build/native-linux-eur`). The asset
 headers are generated once into `build/assets/GZLE01` (`build/assets/GZLP01`). Downloads stay between runs in the
 repository's ignored `build/` and `ref/` folders (Aurora and its packages in
 `build/native-linux/_deps`, the decompilation and its tools in `build/decomp-docker`, RecompCore in
-`ref/recompcore`, Dawn's sources in `build/switch-native/_deps`)
-and in the engine's image cache; the first Switch build takes an hour or more, later ones minutes.
+`ref/recompcore`) and in the engine's image cache.
 `scripts/docker/build.sh --help` lists every option. On Windows, keep the clone inside the WSL file
 system (for example `~/switchwaker`), not under `/mnt/c`: builds there are much slower.
 
 ## Windows (status)
 
 There is no native Windows build yet; it is low priority. Windows users can build the Linux binary
-(and run it under WSLg) or the Switch NRO with Docker, as above. What a native port would need, and
+(and run it under WSLg) with Docker, as above. What a native port would need, and
 an estimate: [docs/WINDOWS.md](docs/WINDOWS.md).
 
 ## Continuous integration
 
 `.github/workflows/ci.yml` checks what can be checked without a disc: scripts lint, Aurora, the SDK
-layer and the run harness built and unit-tested on Linux x86_64 and aarch64, and the Switch build
-images cached. It runs only when started by hand (Actions tab, "Run workflow"), to keep the
+layer and the run harness built and unit-tested on Linux x86_64 and aarch64. It runs only when started by hand (Actions tab, "Run workflow"), to keep the
 private repository's Actions minutes. The game itself builds without the disc in the runtime-assets
 mode ([docs/RUNTIME_ASSETS.md](docs/RUNTIME_ASSETS.md): `gen_assets.sh --stubs`, `-DCOS_RUNTIME_ASSETS=ON`;
 the data arrays are read from the player's disc at start-up), which the CI job also builds; the default
@@ -186,140 +175,31 @@ It includes a disc importer and app-container storage, but the complete game
 build and device gameplay have not yet been verified. Build prerequisites,
 checks and remaining milestones: [docs/IOS.md](docs/IOS.md).
 
-## Build for the Switch
-
-**Players do not need to build**: the release downloads hold the NRO (built without the disc) and its
-caches, one download per disc: `SwitchWaker-<version>-switch.zip` (USA, `switchwaker.nro`) and
-`SwitchWaker-<version>-switch-eur.zip` (Europe), both installing `switch/switchwaker/switchwaker.nro`
-(one version per SD card); players add their own disc ([INSTALL.md](INSTALL.md)). To build it yourself,
-`scripts/switch/make_sd.sh --disc /path/to/GZLE01.iso` checks the disc, builds the NRO in containers and
-lays out `build/sd/switch/` (NRO, caches, a copy of the disc) for the SD card.
-
-On top of the above: Docker Desktop or Podman. `scripts/switch/build_native.sh` produces
-`build/switch-native/switchwaker.nro` (the deko3d renderer; Dawn, Aurora and the shader cache are built in
-a devkitPro container; `--runtime-assets` builds it without the disc; `--eur` builds
-`build/switch-native-eur/switchwaker-eur.nro`, the European version).
-Full guide: [docs/SWITCH_BUILD.md](docs/SWITCH_BUILD.md).
-
-### Debug server (developers)
-
-For development there is a debug server: from the computer, over the local network, you can
-deploy a new build and restart the game without touching the console, follow the log as it is
-written, take screenshots, press buttons and warp. It is **off by default**: players never need it
-and the game opens no network port unless it is turned on in the options menu (Depuración >
-"Servidor de depuración", at the next start). It has no password, so use it only on your own network.
-
-```sh
-echo <console ip> > build/switch_host.txt                                  # once; the log prints the address
-scripts/switch/build_native.sh && scripts/switch/switchwaker_debug.py deploy # upload, check, restart
-scripts/switch/switchwaker_debug.py log                                      # the log, live
-scripts/switch/switchwaker_debug.py shot                                     # PNG of the next frame
-scripts/switch/switchwaker_debug.py press A                                  # also hold, release, stick, warp
-```
-
-`deploy` restarts the game, so start it from the HOME-screen icon (forwarder). `deploy --eur` uploads the
-European NRO as `switchwaker.nro` too; `deploy` refuses to replace the running game with the other region's
-build unless `--force`. Every command and the
-protocol: [docs/DEBUG_SERVER.md](docs/DEBUG_SERVER.md). It is the same server as SwitchWakerHD's.
-
-## Install on the Switch
-
-### What you need
-
-- A Switch running custom firmware (Atmosphère) with the Homebrew Menu.
-- The release download for your disc (`SwitchWaker-<version>-switch.zip` for USA: `switchwaker.nro`,
-  `initial_pipeline_cache.db`, `initial_dksh_cache.bin`; `SwitchWaker-<version>-switch-eur.zip` for
-  Europe: the European `switchwaker.nro` and the same two caches), or the same files from your own build
-  (`build/switch-native/`, or `build/switch-native-eur/` whose `switchwaker-eur.nro` goes on the card as
-  `switchwaker.nro`).
-- Your disc as an **uncompressed** `.iso` (not RVZ, GCZ, CISO or NKit), renamed to `GZLE01.iso` (USA) or
-  `GZLP01.iso` (Europe).
-- About 1.6 GB free on the SD card (the disc is 1.4 GB; the shader caches grow to a few dozen MB).
-
-### Copy the files
-
-The SD card must end up like this (folder and file names exactly as shown):
-
-```
-sdmc:/switch/switchwaker/
-├── switchwaker.nro                the game, the USA or the European version (one per card)
-├── GZLE01.iso                     your disc (GZLP01.iso: the European one)
-├── initial_pipeline_cache.db      the list of graphics pipelines the game uses
-├── initial_dksh_cache.bin         their shaders, compiled for the Switch's GPU
-└── native/                        created by the game: logs, saves, settings, caches
-```
-
-Either way works:
-
-- **By hand**: put the SD card in the computer (or mount it over USB with hekate's
-  *Tools → USB Tools → SD Card* or similar) and copy the four files into `switch/switchwaker/`.
-- **Over USB (MTP)**, from the repository: `scripts/switch/push.sh --disc /path/to/GZLE01.iso`
-  once (named after the disc's ID), then `scripts/switch/push.sh native` (the NRO and its caches;
-  `native-eur` for the European build, pushed as `switchwaker.nro`) after every build.
-  Every file is read back and checked. Needs `brew install libmtp` and USB file transfer enabled on
-  the console (DBI, haze or similar). Details: [docs/SWITCH_BUILD.md](docs/SWITCH_BUILD.md).
-
-Without `initial_dksh_cache.bin` the game still runs, but every shader is then compiled on the console
-the first time it is needed (its draws skipped meanwhile), and the first hours show missing effects.
-
-### Start the game
-
-- Open the Homebrew Menu **in title mode**: hold **R** while starting any installed game, then pick
-  **SwitchWaker** (**SwitchWaker EUR**: the European version). Opened from the album (applet mode)
-  the game has far too little memory and will not run properly.
-- Or install the HOME-screen icon (forwarder), which always starts it in title mode:
-  build it with `scripts/switch/build_forwarder.sh` and install `switchwaker_forwarder.nsp` with
-  DBI ([switch/forwarder/INSTALL.md](switch/forwarder/INSTALL.md)). It starts `switchwaker.nro`, whichever
-  version it is.
-
-### The first start: shaders
-
-The Switch renderer is deko3d (since phase 6 of [docs/DEKO3D_MIGRATION_PLAN.md](docs/DEKO3D_MIGRATION_PLAN.md)):
-the compiled shaders of every bundled pipeline come next to the NRO in `initial_dksh_cache.bin`, so
-**there is no shader preparation**: the game starts in seconds, the first time too. A shader the file
-lacks (a new effect, a mod) is compiled once in the background and kept in
-`native/user/cache/dksh_local.bin`; its draw is skipped for a moment meanwhile.
-
-The previous renderer, OpenGL ES on Mesa (`switchwaker_gl.nro`, "SwitchWaker (GL)"), was removed on
-2026-10-09; [INSTALL.md](INSTALL.md), "Updating", lists the files it left on the SD card.
-
-### Saves, settings and updates
-
-- Saves (the memory card): `sdmc:/switch/switchwaker/native/user/USA/Card A`. Back up this folder.
-- Settings from the options menu: `native/user/settings.ini`.
-- To update, replace `switchwaker.nro`, `initial_pipeline_cache.db` and `initial_dksh_cache.bin`. Saves,
-  settings and caches stay.
-- Logs, if something goes wrong: `native/logs/`, one file per session named by its date and time
-  (`switchwaker_<date>_<time>.log`); the newest is this run. Only the 10 most recent sessions are kept.
-- If you used this port's earlier SD folder (`sdmc:/switch/centollos/`), rename it to
-  `switchwaker` and rename `centollos.nro` to `switchwaker.nro`; the old path is no longer read.
-
 ## Options
 
-- In-game options menu: **Minus (−)** on the Switch, **F1** (or L+R+Z) on the Mac and Linux. Saved to
-  `native/user/settings.ini`.
+- In-game options menu: **F1** (or L+R+Z on a controller). Saved to `settings.ini` in the user
+  directory (`user/` next to the executable on the Mac and Linux; the app container on iOS).
 - Button remapping: options menu > *Controles* (*Controls*): pick a GameCube button, press the controller
   button you want for it (two actions swap buttons); Minus cancels and can never be assigned.
   "Restaurar controles por defecto" puts them all back, as does deleting the `COS_PAD_` lines of
-  `native/user/settings.ini`. On the Mac and Linux, Xbox controllers and GameCube adapters keep their
+  `settings.ini`. Xbox controllers and GameCube adapters keep their
   usual mapping.
 - Language: the options menu and the shader loading screen are in Spanish or English, following the
-  console's language (on the Mac and Linux, `LANG`); `COS_LANG=es` or `COS_LANG=en` forces one.
-- `COS_*` variables (environment on the Mac and Linux; on the Switch the options menu, and for
-  developer variables the `[dev]` section of `native/user/settings.ini`):
-  [switch/native/settings-dev.example.ini](switch/native/settings-dev.example.ini) and
-  [native/README.md](native/README.md).
+  system language (`LANG` on the Mac and Linux); `COS_LANG=es` or `COS_LANG=en` forces one.
+- `COS_*` variables (the environment, or for developer variables the `[dev]` section of
+  `settings.ini`): [native/README.md](native/README.md).
 - HD textures (optional, a Dolphin-format pack you supply): [docs/HD_TEXTURES.md](docs/HD_TEXTURES.md).
 - 16:9 widescreen: [docs/WIDESCREEN.md](docs/WIDESCREEN.md).
 
 ## Status
 
-Boots and plays on the Mac and the Switch, with sound, controllers, memory-card saves and an
+Boots and plays on the Mac, with sound, controllers, memory-card saves and an
 options menu. Played by hand mostly on the opening island and a few other areas; automated sweeps
 run on the Mac over every stage and room, every actor, particle effect, model and screen, every event
 of every stage, every item through its item-get demo, saves loaded back, every enemy fought and
-every boss room, also under AddressSanitizer ([native/README.md](native/README.md), "Sweeps"). The Switch
-does not yet hold a stable 30 fps everywhere. The Linux build boots to the same milestones and
+every boss room, also under AddressSanitizer ([native/README.md](native/README.md), "Sweeps"). The iOS
+app builds and starts on an M4 iPad Pro; gameplay there is not verified yet ([docs/IOS.md](docs/IOS.md)).
+The Linux build boots to the same milestones and
 passes the regression in a container with software Vulkan (aarch64); it has not been played on a
 Linux desktop with a GPU yet.
 Known issues: [docs/NATIVE_PORT_PLAN.md](docs/NATIVE_PORT_PLAN.md), "Known bugs".

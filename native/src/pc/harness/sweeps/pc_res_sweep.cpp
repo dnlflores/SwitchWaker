@@ -1,6 +1,6 @@
 // COS_SMOKE=res-sweep: draw every J3D model and every 2D screen of the disc once in a running PLAY
 // scene, so Aurora records the pipelines their materials make (native/tools/gen_pipeline_cache.sh,
-// tiers model-sweep and screen-sweep; docs/SWITCH_BUILD.md, "Pipeline precompile").
+// tiers model-sweep and screen-sweep).
 // With the debug stage boot (COS_BOOT_STAGE, e.g. sea:44:0), once the player is in the start room (the
 // M12 probe, pc_outset.cpp) and kSettleFrames later, every .arc under /res (the FST walked as the
 // j3d-sweep and blo-sweep smokes walk it) is taken in turn, one archive at a time:

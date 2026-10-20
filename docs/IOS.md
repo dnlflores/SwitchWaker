@@ -106,6 +106,6 @@ or launch the game.
    controller reconnection, rotation and iPad resizing. Verify saves on interruption.
 5. Add touch controls and finish app packaging after the native game boots.
 
-The upstream Mac and Switch paths remain separate. The native response file is
+The Mac build remains the development host; the Switch build was removed from this checkout. The native response file is
 now per configuration for Xcode; macOS package selection and symbol census are
 restricted to Darwin rather than every Apple operating system.

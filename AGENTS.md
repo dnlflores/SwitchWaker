@@ -1,76 +1,31 @@
 # Notes for agents
 
-## Reaching the Switch: the debug server
+This checkout targets iPhone and iPad ([docs/IOS.md](docs/IOS.md)). The Mac build stays as the
+development host: the run harness, the smokes and the regression run there. There is no Switch build
+here; do not add one back.
 
-The console runs a TCP debug server (port 6543) when the options menu (Minus) has Depuración >
-**Servidor de depuración (red)** set to *Activado*; it starts at the next start of the game. Full reference:
-[docs/DEBUG_SERVER.md](docs/DEBUG_SERVER.md).
-
-- The console's address: `build/switch_host.txt` (first line), else `export SWITCHWAKER_HOST=<ip>`, else
-  `--host <ip>`. `build/` is not in git, so a fresh checkout needs the file written again.
-- Check that it answers: `scripts/switch/switchwaker_debug.py ping` (or `info`: version, frame, stage and
-  room, memory). If it does not answer, ask the user to start the game (and turn the server on if it is off);
-  do not guess.
-
-## Update the console
+## Build the iOS app
 
 ```sh
-scripts/switch/build_native.sh && scripts/switch/switchwaker_debug.py deploy
+export COS_IOS_TEAM=<Apple team id>
+scripts/ios/configure.sh                          # build/ios-device (Xcode project)
+cmake --build build/ios-device --config Release --target switchwaker
+scripts/ios/check-platform.sh                     # the UIKit importer for device and simulator, the plist
 ```
 
-`deploy` uploads `build/switch-native/switchwaker.nro` (the deko3d NRO, the only renderer) with the
-`initial_pipeline_cache.db` and `initial_dksh_cache.bin` built next to it, checks each CRC32, restarts the game
-and waits until it answers. The restart (`reload`) needs the game started from the HOME-menu forwarder; from hbmenu,
-`deploy --no-reload`, then ask the user to start it again. The European NRO: `build_native.sh --eur`, then
-`deploy --eur`: it goes in as `switchwaker.nro` too (one region per SD card; the forwarder starts either, so
-`reload` works). `info`'s `game` line says which region is running, and `deploy` refuses to replace it with
-the other region's NRO (the console's disc would not match) unless `--force`: check the console's region
-before deploying. Building:
-[docs/SWITCH_BUILD.md](docs/SWITCH_BUILD.md).
-
-## Debug
-
-```sh
-scripts/switch/switchwaker_debug.py log --save build/session.log &   # the log as it is written
-scripts/switch/switchwaker_debug.py warps                            # the options menu's travel list
-scripts/switch/switchwaker_debug.py warp 2 && sleep 10 && scripts/switch/switchwaker_debug.py shot build/shot.png
-scripts/switch/switchwaker_debug.py press MINUS                      # buttons as if from the controller
-scripts/switch/switchwaker_debug.py get native/user/settings.ini build/settings.ini   # relative to sdmc:/switch/switchwaker
-```
-
-After a crash the server is gone with the game: ask the user to start it again, then
-`scripts/switch/switchwaker_debug.py lastlog` (the crashed session is then the second newest, see `logs`) and
-`scripts/switch/switchwaker_debug.py crashes --fetch build/crashes`.
-
-Developer variables without a menu row (`COS_TRACE`, `COS_BOOT_STAGE`, `COS_DK_*`, ...) go in the `[dev]`
-section of `native/user/settings.ini` ([switch/native/settings-dev.example.ini](switch/native/settings-dev.example.ini)),
-read at start: `get` it, edit, `put` it back, `reload`.
-
-The debug server (`switch/native/source/debug_server.{h,cpp}`) and the client are shared with SwitchWakerHD:
-keep the two copies the same.
+Without a signing identity, append `-- CODE_SIGNING_ALLOWED=NO` to the build (the app then cannot be
+installed). `scripts/ios/configure.sh --simulator` makes the separate simulator project. Prerequisites,
+storage paths and the open milestones: [docs/IOS.md](docs/IOS.md).
 
 ## Defaults are for the player
 
-A fresh install (no `settings.ini`) must start with player defaults: debug server off, frame-rate counter
-and every diagnostic, perf or capture option off, stock clocks, mods off, no `[dev]` section. A new
-diagnostic or test option ships off and goes in the options menu's Depuración section. Check the
-fresh-install defaults again whenever the settings code changes; a player's saved `settings.ini` keeps what
-they chose.
+A fresh install (no `settings.ini`) must start with player defaults: frame-rate counter and every
+diagnostic, perf or capture option off, mods off, no `[dev]` section. A new diagnostic or test option
+ships off and goes in the options menu's Depuración section. Check the fresh-install defaults again
+whenever the settings code changes; a player's saved `settings.ini` keeps what they chose.
 
-## Clocks
-
-The CPU stays at its stock 1020 MHz ([docs/SWITCH_BUILD.md](docs/SWITCH_BUILD.md), "Run"); the GPU uses
-Nintendo's official performance profiles. Do not propose an overclock as a fix: speed comes from the code.
-The target is 720p (1280x720 internal) at 30 fps.
-
-## The SD card without the debug server
-
-- Best: hekate's USB mass storage (UMS). The SD mounts at `/Volumes/SWITCH SD` (FAT32): plain `cp`, then
-  `sync`; the user ejects it before leaving UMS. The port's files are in `/Volumes/SWITCH SD/switch/switchwaker/`:
-  logs in `native/logs/`, settings in `native/user/settings.ini`, caches in `native/user/cache/`.
-- MTP is fragile: one operation at a time, `killall icdd` first (Image Capture grabs the device), never kill
-  an MTP process mid-session, list one folder rather than the whole card. If a session fails twice, stop and
-  ask the user to restart the MTP app on the console.
+Developer variables without a menu row (`COS_TRACE`, `COS_BOOT_STAGE`, ...) go in the `[dev]` section of
+`settings.ini` or the environment ([native/README.md](native/README.md)).
 
 ## Mac build
 

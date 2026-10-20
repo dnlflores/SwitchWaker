@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Record the pipelines the game uses on the Mac and merge them into Aurora's bundled pipeline cache,
-# initial_pipeline_cache.db, for the Switch build to precompile at boot (docs/SWITCH_BUILD.md,
-# "Pipeline precompile").
+# initial_pipeline_cache.db, for a build to precompile at boot (COS_PRECOMPILE, pc_precompile.cpp).
 #
 #   native/tools/gen_pipeline_cache.sh [--out DIR] [--no-build] [--no-sweep] [--no-prologue]
 #                                      [--no-bombs] [--no-combat] [--no-items] [--no-gameplay]
@@ -53,15 +52,13 @@
 # keeps one row per (type, hash), the lowest tier's frame.
 #
 # The file also gets a pipeline_priority table (type, hash, priority): priority 0 for the rows of
-# tiers 0-3 (the boot path, logos to Outset: priority_tiers below), 1 for the rest. The Switch
-# build's Aurora (switch/native/aurora/patches/0008) warms the priority-0 pipelines up first and the
-# loading screen at boot waits for them (COS_PRECOMPILE=boot); unpatched Aurora ignores the table.
+# tiers 0-3 (the boot path, logos to Outset: priority_tiers below), 1 for the rest. Unpatched Aurora
+# ignores the table (the removed Switch build's Aurora patch warmed the priority-0 pipelines up first).
 # --mark-priority DB only (re)writes that table in an existing file.
 #
-# --merge-from DB (repeatable) adds the rows of another Aurora pipeline cache, e.g. the console's
-# own user/cache/pipeline_cache.db (scripts/switch/pull_pipeline_cache.sh fetches it) or the cache of
-# any Mac run, as one more tier each: by default the tiers after the Mac runs' (one per file, in
-# order), so they are priority 1 and the Switch builds them after the boot path and the stage sweep;
+# --merge-from DB (repeatable) adds the rows of another Aurora pipeline cache, e.g. a device's own
+# user/cache/pipeline_cache.db or the cache of any Mac run, as one more tier each: by default the tiers
+# after the Mac runs' (one per file, in order), so they are priority 1;
 # --tier N right after a --merge-from picks its tier (below 4 makes its new rows priority 0). The
 # file is read from a temporary copy (with its -journal, -wal and -shm files: sqlite rolls a hot
 # journal back or replays a WAL on the copy, the original is never written). A row whose key, (type,
@@ -82,10 +79,8 @@
 # stage/combiner selectors, vertex attribute formats, blend, depth and cull state as raw config
 # structs), so it is kept in the repository and every build gets the warm-up (decided 2026-10-06:
 # a build without it had no "Preparing shaders" screen). --merge-only on a fresh clone starts
-# from that committed file. scripts/switch/build_native.sh puts it next to the NRO and
-# scripts/switch/push.sh pushes it with the NRO (where Aurora looks for it:
-# sdmc:/switch/switchwaker/initial_pipeline_cache.db). On the Mac nothing reads it unless it is
-# copied next to build/native-mac/switchwaker (Aurora's resources path).
+# from that committed file. Aurora reads it from its resources path; on the Mac nothing reads it
+# unless it is copied next to build/native-mac/switchwaker.
 set -u
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -11,8 +11,6 @@
 #                 switchwaker itself with COS_RUNTIME_ASSETS=ON (gen_assets.sh --stubs), for both
 #                 discs: the USA build (GZLE01) and the European one (GZLP01, COS_VERSION=3,
 #                 docs/PAL_DISC_PLAN.md)
-#   switch-image  the Switch build image (scripts/switch/Containerfile.native), built
-#                 and kept in the GitHub Actions cache, so a later job (or a fork) starts warm
 # Downloads (Aurora, Dawn and nod packages, SDL 3 ...) are cached across runs with actions/cache;
 # images with the buildx GitHub Actions cache.
 #
@@ -111,17 +109,3 @@ jobs:
                   -DCOS_VERSION=$ver -DCOS_ASSETS_DIR=/work/build/ci-stubs/$id
               ninja -C build/ci-linux-game-$id switchwaker
             done'
-
-  switch-image:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Switch native build image
-        uses: docker/build-push-action@v6
-        with:
-          context: scripts/switch
-          file: scripts/switch/Containerfile.native
-          tags: centollos-switch-native-build:ci
-          cache-from: type=gha,scope=switch-native
-          cache-to: type=gha,mode=max,scope=switch-native

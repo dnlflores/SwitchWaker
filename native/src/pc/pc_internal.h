@@ -56,7 +56,7 @@ struct Config {
 
 extern Config gConfig;
 
-// Blocks the calling thread for good (pause(); Horizon has none, so a sleep loop there).
+// Blocks the calling thread for good (pause()).
 [[noreturn]] void waitForever();
 
 // Milliseconds since pc_harness_init (monotonic).

@@ -1,6 +1,6 @@
 // COS_SMOKE=fx-sweep: draw every particle emitter the stage has loaded, a few at a time, in front of
 // the player, so each emitter's draw state reaches Aurora once and its pipelines get recorded
-// (native/tools/gen_pipeline_cache.sh, tier fx-sweep; docs/SWITCH_BUILD.md, "Pipeline precompile").
+// (native/tools/gen_pipeline_cache.sh, tier fx-sweep).
 // With the debug stage boot (COS_BOOT_STAGE), once the player is in the start room (the M12 probe,
 // pc_outset.cpp) and kSettleFrames later:
 // - the emitters are those of the common particle resource (common.jpc, resource manager 0) and of

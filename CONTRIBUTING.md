@@ -40,13 +40,14 @@ and certifies the [Developer Certificate of Origin 1.1](https://developercertifi
 ## No game data
 
 Never commit anything derived from the disc: disc images, `main.dol`, RELs, extracted or generated
-assets, screenshots of the game, pipeline caches made from it, or builds (`.nro`, `switchwaker`). Generated
+assets, screenshots of the game, pipeline caches made from it, or builds (`switchwaker`, `switchwaker.app`). Generated
 files stay under `build/` and fetched sources under `ref/`, both ignored by git.
 
 ## Checks
 
 Before sending a change: build the Mac target and run `native/tools/regress.sh`; for changes
-under `switch/` or `scripts/switch/`, also build the NRO with `scripts/switch/build_native.sh`.
+under `ios/` or `scripts/ios/`, also run `scripts/ios/check-platform.sh` and build the iOS app
+([docs/IOS.md](docs/IOS.md)).
 
 ## Names
 

@@ -53,9 +53,7 @@
 
 #include <dolphin/pad.h>
 
-#if !defined(__SWITCH__)
 #include <SDL3/SDL.h>
-#endif
 
 #include <cstdio>
 #include <cstring>
@@ -70,7 +68,6 @@ namespace {
 enum State { kOff, kWait, kAttach, kRun, kDone };
 State sState = kOff;
 
-#if !defined(__SWITCH__)
 
 namespace remap = pc::remap;
 using Input = remap::Input;
@@ -655,7 +652,6 @@ void runMenu(unsigned int frames) {
     }
 }
 
-#endif // !__SWITCH__
 
 void* isPlayScene(void* proc, void*) {
     return fpcM_GetName(proc) == fpcNm_PLAY_SCENE_e ? proc : nullptr;
@@ -666,14 +662,7 @@ void* isPlayScene(void* proc, void*) {
 void buttonRemapFrame(unsigned int frames) {
     if (sState == kOff) {
         sState = gConfig.smoke != nullptr && strcmp(gConfig.smoke, "button-remap") == 0 ? kWait : kDone;
-#if defined(__SWITCH__)
-        if (sState == kWait) {
-            writef(STDERR_FILENO, "[cos] button-remap: Mac and Linux only (SDL virtual gamepads)\n");
-            pc_exit(PC_EXIT_CHECK_FAILED);
-        }
-#endif
     }
-#if !defined(__SWITCH__)
     if (sState == kDone || dComIfGp_getPlayer(0) == nullptr || fpcM_Search(isPlayScene, nullptr) == nullptr) {
         return;
     }
@@ -741,10 +730,6 @@ void buttonRemapFrame(unsigned int frames) {
         }
         return;
     }
-#else
-    (void)frames;
-    (void)isPlayScene;
-#endif
 }
 
 } // namespace pc

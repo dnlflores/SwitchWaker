@@ -30,11 +30,6 @@
 #include <aurora/aurora.h>
 #include <lib/gfx/render_worker.hpp>
 #include <lib/webgpu/gpu.hpp>
-#if defined(COS_SWITCH_DEKO3D)
-// the deko3d NRO reads textures back through its renderer (switch/deko/dk_aurora.h): Dawn's device
-// there is the Null one
-#include "dk_aurora.h"
-#endif
 
 #include <imgui.h>
 
@@ -236,25 +231,6 @@ bool readPixels(unsigned int frame, std::vector<uint8_t>& rgb, uint32_t& outWidt
                (unsigned int)source.format);
         return false;
     }
-#if defined(COS_SWITCH_DEKO3D)
-    {
-        uint8_t* texels = nullptr;
-        uint32_t w = 0, h = 0, format = 0;
-        if (!aurora_switch_dk_read_texture(source.texture.Get(), &texels, &w, &h, &format)) {
-            writef(STDERR_FILENO, "[cos] shot: frame %u: readback did not complete (deko3d)\n", frame);
-            return false;
-        }
-        rgb.assign((size_t)w * h * 3, 0);
-        for (uint32_t y = 0; y < h; y++) {
-            for (uint32_t x = 0; x < w; x++) {
-                texelToRgb((wgpu::TextureFormat)format, texels + ((size_t)y * w + x) * 4, rgb.data() + ((size_t)y * w + x) * 3);
-            }
-        }
-        outWidth = w;
-        outHeight = h;
-        return true;
-    }
-#endif
 
     const uint32_t bytesPerRow = (width * 4 + 255) & ~255u;
     const uint64_t size = (uint64_t)bytesPerRow * height;
@@ -529,7 +505,7 @@ void shotProbe(unsigned int frame,
     aurora::gfx::render_worker::synchronize();
 }
 
-// ---- the Switch debug server's screenshot (switch/native/source/cos_debug.cpp, pc_debug_shot_request)
+// ---- a screenshot asked by another thread (pc_debug_shot_request), written at the next frame end
 std::mutex sDebugShotMu;
 std::string sDebugShotPath;   // where the next frame end writes it ("": nothing asked)
 bool sDebugShotOverlay = false;

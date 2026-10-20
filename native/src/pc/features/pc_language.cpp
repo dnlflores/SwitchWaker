@@ -24,11 +24,7 @@
 #include <dolphin/os.h>
 #include <unistd.h>
 
-#if defined(__SWITCH__)
-#include "cos_switch.h"
-#else
 #include <SDL3/SDL_locale.h>
-#endif
 
 #if VERSION == VERSION_PAL
 
@@ -75,9 +71,6 @@ int codeLanguage(const char* code) {
 }
 
 void readSystemLanguage() {
-#if defined(__SWITCH__)
-    cos_switch_system_language(sSystemCode, sizeof(sSystemCode));
-#else
     int count = 0;
     SDL_Locale** locales = SDL_GetPreferredLocales(&count);
     if (locales != nullptr && count > 0 && locales[0] != nullptr && locales[0]->language != nullptr) {
@@ -85,7 +78,6 @@ void readSystemLanguage() {
                  locales[0]->country != nullptr ? "-" : "", locales[0]->country != nullptr ? locales[0]->country : "");
     }
     SDL_free(locales);
-#endif
     const int lang = codeLanguage(sSystemCode);
     sSystem = lang >= 0 ? lang : 0;
 }

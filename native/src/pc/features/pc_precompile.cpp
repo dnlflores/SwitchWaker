@@ -1,4 +1,4 @@
-// Pipeline precompile at boot (docs/SWITCH_BUILD.md, "Pipeline precompile"): a loading screen until
+// Pipeline precompile at boot (native/tools/gen_pipeline_cache.sh's bundled cache): a loading screen until
 // the boot path's pipelines are built, a corner indicator while the rest are, and progress lines.
 //
 // At start Aurora queues every pipeline its pipeline cache knows (<cache>/pipeline_cache.db, merged
@@ -96,14 +96,8 @@
 #include <limits.h>
 #include <unistd.h>
 
-#if defined(__SWITCH__)
-#include "cos_switch.h"
-
-#include <aurora/switch_precompile.h>
-#else
 #include <limits.h>
 #include <sqlite3.h>
-#endif
 
 #include "pc_precompile_gate.h"
 
@@ -191,22 +185,6 @@ struct Progress {
 
 Progress readProgress() {
     Progress p;
-#if defined(__SWITCH__)
-    AuroraSwitchPrecompile s{};
-    aurora_switch_get_precompile(&s);
-    p.total = s.total;
-    p.done = s.done;
-    p.pending = s.pending;
-    p.dropped = s.dropped;
-    p.priorityTotal = s.priorityTotal;
-    p.priorityDone = s.priorityDone;
-    p.compileS = s.compileNs / 1e9;
-    p.waitS = s.contextWaitNs / 1e9;
-    p.throttleDuty = s.throttleDuty;
-    p.throttled = s.throttled;
-    p.unthrottled = s.unthrottled;
-    p.throttleWaitS = s.throttleWaitNs / 1e9;
-#else
     const AuroraStats* stats = aurora_get_stats();
     const uint32_t created = stats != nullptr ? stats->createdPipelines : sCreated0;
     const uint32_t queued = stats != nullptr ? stats->queuedPipelines : 0;
@@ -219,11 +197,9 @@ Progress readProgress() {
     // Approximation (see the top): the first sPriorityRows built.
     p.priorityTotal = sPriorityRows < sTotal0 ? sPriorityRows : sTotal0;
     p.priorityDone = p.done < p.priorityTotal ? p.done : p.priorityTotal;
-#endif
     return p;
 }
 
-#if !defined(__SWITCH__)
 // The bundled file's priority-0 rows (<directory of the executable>/initial_pipeline_cache.db).
 uint32_t readPriorityRows() {
     char exe[PATH_MAX] = {};
@@ -252,7 +228,6 @@ uint32_t readPriorityRows() {
     sqlite3_close(db);
     return rows;
 }
-#endif
 
 // The last warm-up's outcome (<cache>/precompile_state.txt, one line):
 //   "decomp-precompile-state 1 complete DONE TOTAL SLOW_MS": every queued pipeline was built;
@@ -327,15 +302,10 @@ bool readUiSpanish() {
     const char* lang = getenv("COS_LANG");
     char system[16] = "";
     if (lang == nullptr || lang[0] == '\0') {
-#if defined(__SWITCH__)
-        cos_switch_system_language(system, sizeof(system));
-        lang = system;
-#else
         lang = getenv("LC_ALL");
         if (lang == nullptr || lang[0] == '\0') {
             lang = getenv("LANG");
         }
-#endif
     }
     return lang != nullptr && strncmp(lang, "es", 2) == 0;
 }
@@ -353,15 +323,8 @@ void formatEta(char* out, size_t size, double seconds) {
 // "; throttle duty 0.50, ..." (Switch, while the warm-up is throttled) or nothing.
 void programNote(char* out, size_t size, const Progress& p) {
     out[0] = '\0';
-#if defined(__SWITCH__)
-    if (p.throttleDuty > 0) {
-        snprintf(out, size, "; throttle duty %.2f, %u held back, %.1f s waited, %u fast builds not held",
-                 p.throttleDuty, p.throttled, p.throttleWaitS, p.unthrottled);
-    }
-#else
     (void)p;
     (void)size;
-#endif
 }
 
 void logLine(const char* what, const Progress& p, unsigned int frames, uint64_t now) {
@@ -382,19 +345,6 @@ void logLine(const char* what, const Progress& p, unsigned int frames, uint64_t 
            p.done, p.total, s, compile, programs, frames, traceSceneName(traceScene()));
 }
 
-#if defined(__SWITCH__)
-void stopWarmup(const char* why, unsigned int frames, uint64_t now) {
-    const uint32_t dropped = aurora_switch_stop_precompile();
-    const Progress p = readProgress();
-    if (sLog) {
-        char what[96];
-        snprintf(what, sizeof(what), "stopped (%s; %u left to build when first drawn) at ", why,
-                 dropped);
-        logLine(what, p, frames, now);
-    }
-    sActive = false;
-}
-#endif
 
 constexpr ImGuiWindowFlags kPanelFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
                                          ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
@@ -485,15 +435,9 @@ void loadingEvents() {
 void precompileInit(const char* cacheDir) {
     const char* policy = getenv("COS_PRECOMPILE");
     const bool policySet = policy != nullptr && policy[0] != '\0';
-#if defined(__SWITCH__)
-    sPolicy = Policy::Boot;
-    sUi = true;
-    const bool logDefault = true;
-#else
     sPolicy = Policy::All;
     sUi = policySet; // the Mac draws nothing unless asked
     const bool logDefault = false;
-#endif
     if (policySet) {
         if (strcmp(policy, "boot") == 0) {
             sPolicy = Policy::Boot;
@@ -535,10 +479,6 @@ void precompileInit(const char* cacheDir) {
     if (!(sSlowMs >= 0.0)) {
         sSlowMs = 0.0;
     }
-#if defined(__SWITCH__)
-    // Also the threshold of Aurora's slow build list, from the probe on.
-    aurora_switch_set_warmup_slow_ns((uint64_t)(sSlowMs * 1e6));
-#endif
     // COS_PRECOMPILE_SCREEN_MIN_S (default 3): auto shows the loading screen only when the slow work
     // left would take longer than this; less is built behind the logos.
     const char* minEnv = getenv("COS_PRECOMPILE_SCREEN_MIN_S");
@@ -561,14 +501,12 @@ void precompileInit(const char* cacheDir) {
     sStartNs = monotonicNs();
     sNextLogNs = sStartNs + 1000000000ull;
 
-#if !defined(__SWITCH__)
     const AuroraStats* stats = aurora_get_stats();
     sTotal0 = stats != nullptr ? stats->queuedPipelines : 0;
     sCreated0 = stats != nullptr ? stats->createdPipelines : 0;
     if (sPolicy == Policy::Boot) {
         sPriorityRows = readPriorityRows();
     }
-#endif
     const Progress p = readProgress();
     sActive = p.total > 0;
     if (sUi && sScreen == Screen::Auto && (sPolicy == Policy::Boot || sPolicy == Policy::Full) &&
@@ -591,11 +529,6 @@ void precompileInit(const char* cacheDir) {
                p.total, p.priorityTotal, kPolicy[(int)sPolicy],
                screenApplies ? "; COS_PRECOMPILE_SCREEN=" : "", screenApplies ? kScreen[(int)sScreen] : "");
     }
-#if defined(__SWITCH__)
-    if (sActive && sPolicy == Policy::Off) {
-        stopWarmup("COS_PRECOMPILE=off", 0, sStartNs);
-    }
-#endif
 }
 
 namespace {
@@ -603,43 +536,12 @@ void loadingScreen();
 
 // The warm-up throttle behind the logos (Switch patch 0009; COS_PRECOMPILE_DUTY), 0 = off.
 void setThrottle(float duty) {
-#if defined(__SWITCH__)
-    aurora_switch_set_warmup_throttle(duty);
-#else
     (void)duty;
-#endif
 }
 
 // COS_PRECOMPILE=boot on the Switch, once the game starts: the rest of the warm-up is throttled
 // (Switch patch 0009) so that the logos and menus keep their frame rate.
 void startThrottle() {
-#if defined(__SWITCH__)
-    if (!sActive || sPolicy != Policy::Boot) {
-        return;
-    }
-    float duty = 0.5f;
-    const char* env = getenv("COS_PRECOMPILE_DUTY");
-    if (env != nullptr && env[0] != '\0') {
-        duty = strtof(env, nullptr);
-    }
-    const bool on = duty > 0.0f && duty < 1.0f;
-    // Only a build longer than COS_PRECOMPILE_SLOW_MS (a shader cache miss) holds the next one back.
-    aurora_switch_set_warmup_slow_ns((uint64_t)(sSlowMs * 1e6));
-    sDuty = on ? duty : 0.0f;
-    setThrottle(sDuty);
-    if (sLog) {
-        if (on) {
-            writef(STDERR_FILENO,
-                   "[cos] precompile throttle: after a build longer than %.0f ms (COS_PRECOMPILE_SLOW_MS) the "
-                   "next waits so that the warm-up builds about %.0f%% of the time, starting after a present "
-                   "(COS_PRECOMPILE_DUTY=%.2f); faster builds follow at once\n",
-                   sSlowMs, duty * 100.0, duty);
-        } else {
-            writef(STDERR_FILENO, "[cos] precompile throttle: off (COS_PRECOMPILE_DUTY=%s)\n",
-                   env != nullptr ? env : "");
-        }
-    }
-#endif
 }
 } // namespace
 
@@ -1022,48 +924,6 @@ void loadingScreen() {
 void drainSlowBuilds() {
     sFrameSlowBuilds = 0;
     sFrameSlowS = 0;
-#if defined(__SWITCH__)
-    AuroraSwitchSlowBuild builds[32];
-    const uint64_t prevSeq = sSlowSeq;
-    const uint32_t n = aurora_switch_get_slow_builds(builds, 32, &sSlowSeq);
-    if (n > 0 && builds[0].seq > prevSeq + 1) {
-        sSlowLost += (uint32_t)(builds[0].seq - prevSeq - 1); // more than Aurora's ring keeps
-    }
-    for (uint32_t i = 0; i < n; i++) {
-        const AuroraSwitchSlowBuild& b = builds[i];
-        const double ownMs = (b.ns - (b.waitNs < b.ns ? b.waitNs : b.ns)) / 1e6;
-        const bool slowOwn = ownMs > sSlowMs;
-        if (slowOwn) {
-            sSlowOwnTotal++;
-        }
-        // This frame's warm-up builds behind the logos (lateScreenCheck's sLateDone: the done count
-        // at the previous frame) that were slow for their own work.
-        if (b.warmup && slowOwn && sBehindLogos && b.warmupDone > sLateDone) {
-            sFrameSlowBuilds++;
-            sFrameSlowS += ownMs / 1000.0;
-        }
-        if (!sLog) {
-            continue;
-        }
-        if (sSlowLogged >= kSlowBuildLogMax) {
-            if (sSlowLogged++ == kSlowBuildLogMax) {
-                writef(STDERR_FILENO, "[cos] precompile slow build: more than %u; the rest are not listed\n",
-                       kSlowBuildLogMax);
-            }
-            continue;
-        }
-        sSlowLogged++;
-        writef(STDERR_FILENO,
-               "[cos] precompile slow build %llu: pipeline %016llx (%s, %u/%u built), %.1f ms: tint %.1f, waited "
-               "for the GL context %.1f, held it %.1f ms (%s); frame %u\n",
-               (unsigned long long)b.seq, (unsigned long long)b.hash, b.warmup ? "warm-up" : "for a draw",
-               b.warmupDone, readProgress().total, b.ns / 1e6, b.translateNs / 1e6, b.waitNs / 1e6,
-               b.heldNs / 1e6,
-               slowOwn ? "its own work: a shader cache miss or a slow cache read"
-                       : "slow only for the wait: the render worker had the context, not a cache miss",
-               pc_frame_count());
-    }
-#endif
 }
 
 // With the game started behind no loading screen (auto or priority), every frame while the logos
@@ -1164,15 +1024,11 @@ void precompileFrame(unsigned int frames) {
     const uint64_t now = monotonicNs();
     drainSlowBuilds();
     if (sPolicy == Policy::Boot && traceScene() == kPlayScene) {
-#if defined(__SWITCH__)
-        stopWarmup("PLAY scene", frames, now);
-#else
         // Unpatched Aurora goes on building; only the report and the indicator end.
         sActive = false;
         if (sLog) {
             logLine("no longer reported (PLAY scene) at ", readProgress(), frames, now);
         }
-#endif
         return;
     }
     const Progress p = readProgress();

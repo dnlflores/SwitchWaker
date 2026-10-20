@@ -2,15 +2,14 @@
 # Build SwitchWaker in containers on any host with Docker or Podman (Linux, macOS, Windows through
 # WSL 2 with Docker Desktop or Podman):
 #
-#   scripts/docker/build.sh [linux|switch|all] --disc /path/to/GZLE01.iso [options]
+#   scripts/docker/build.sh [linux] --disc /path/to/GZLE01.iso [options]
 #
 # The disc decides the version: GZLE01 (USA) or GZLP01 (Europe, docs/PAL_DISC_PLAN.md: asset headers in
-# build/assets/GZLP01, build/native-linux-eur, build/switch-native-eur/switchwaker-eur.nro).
+# build/assets/GZLP01, build/native-linux-eur).
 #
 #   linux    build/native-linux/switchwaker: the native Linux binary (Vulkan, OpenGL fallback),
-#            for the container's architecture (the host's: x86_64 or aarch64; see --platform)
-#   switch   build/switch-native/switchwaker.nro: the Switch homebrew (scripts/switch/build_native.sh)
-#   all      both (default)
+#            for the container's architecture (the host's: x86_64 or aarch64; see --platform);
+#            the only target (the default)
 #
 # Options:
 #   --disc PATH       the GZLE01 or GZLP01 revision 0 disc image (default: $COS_DISC). Bind-mounted read-only;
@@ -28,29 +27,56 @@
 #
 # What the steps do (all inside containers; the host needs only bash, git and the engine):
 #   1. the asset headers from the disc (native/tools/gen_assets.sh) into build/assets/GZLE01,
-#      shared by both targets, unless they are already there;
+#      unless they are already there;
 #   2. RecompCore (Dolphin's DSP HLE, native/tools/fetch_recompcore.sh) into ref/recompcore;
-#   3. linux: cmake + ninja in the image of scripts/docker/Containerfile.linux;
-#      switch: Aurora at native/'s pin into build/aurora-3227d76 if missing, then
-#      scripts/switch/build_native.sh (devkitPro image, Dawn and the deko3d renderer built in containers).
+#   3. linux: cmake + ninja in the image of scripts/docker/Containerfile.linux.
 #
 # Downloads are kept between runs, under the repository's ignored directories:
 #   build/native-linux*/_deps        Aurora, Dawn (prebuilt package), nod (prebuilt), SDL 3, ...
 #   build/decomp-docker              the decompilation checkout and its dtk binary (Linux build)
 #   ref/recompcore                   RecompCore
-#   build/aurora-3227d76             Aurora at the pin (the Switch build)
-#   build/switch-native/_deps        Dawn's source and dependencies for the Switch
-#   container images                 localhost/centollos-linux-build:<hash of the Containerfile>,
-#                                    localhost/centollos-switch-*-build:<date>
+#   container images                 localhost/centollos-linux-build:<hash of the Containerfile>
 # Delete a directory to fetch it again; `docker image prune` drops old images.
 #
 # Every binary built contains code generated from the disc: for the owner of the disc only.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-source "$root/scripts/switch/container.sh"
 
-what=all
+# The container engine: COS_CONTAINER_ENGINE (podman or docker) if set, else Podman if installed, else Docker.
+container_engine() {
+    if [[ -n ${COS_CONTAINER_ENGINE:-} ]]; then
+        printf '%s\n' "$COS_CONTAINER_ENGINE"
+    elif command -v podman >/dev/null 2>&1; then
+        echo podman
+    elif command -v docker >/dev/null 2>&1; then
+        echo docker
+    fi
+}
+
+container_image_exists() {
+    local engine=$1 image=$2
+    if [[ $engine == podman ]]; then
+        podman image exists "$image"
+    else
+        docker image inspect "$image" >/dev/null 2>&1
+    fi
+}
+
+# container_run ENGINE ROOT [run options...] IMAGE COMMAND...: ROOT mounted at /work, run as the
+# invoking user so build outputs stay owned by them.
+container_run() {
+    local engine=$1 root=$2
+    shift 2
+    if [[ $engine == podman ]]; then
+        podman run --rm --userns=keep-id -v "$root:/work:Z" -w /work "$@"
+    else
+        docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$root:/work" -w /work "$@"
+    fi
+}
+
+what=linux
 disc=${COS_DISC:-}
 jobs=""
 platform=""
@@ -59,7 +85,7 @@ do_test=0
 do_regress=0
 while [[ $# -gt 0 ]]; do
     case $1 in
-        linux|switch|all) what=$1; shift ;;
+        linux) what=$1; shift ;;
         --disc) disc=$2; shift 2 ;;
         --jobs) jobs=$2; shift 2 ;;
         --platform) platform=$2; shift 2 ;;
@@ -90,7 +116,7 @@ case $game_id in
 esac
 
 if [[ -n $engine ]]; then
-    export SWITCH_CONTAINER_ENGINE=$engine
+    export COS_CONTAINER_ENGINE=$engine
 fi
 engine=$(container_engine)
 if [[ -z $engine ]]; then
@@ -148,7 +174,7 @@ if [[ ! -f $root/ref/recompcore/Source/Core/Core/HW/DSPHLE/UCodes/UCodes.cpp ]];
 fi
 
 # --- 3a. Linux --------------------------------------------------------------------------------------
-if [[ $what == linux || $what == all ]]; then
+if [[ $what == linux ]]; then
     bdir=build/native-linux$eur_suffix$arch_suffix
     echo "docker/build: Linux build in $bdir ($image, $jobs jobs)"
     # The container fetches Aurora itself: a FETCHCONTENT_SOURCE_DIR_AURORA left in the cache by a
@@ -185,22 +211,4 @@ if [[ $what == linux || $what == all ]]; then
             export DISPLAY=:99
             native/tools/regress.sh -j 4"
     fi
-fi
-
-# --- 3b. Switch -------------------------------------------------------------------------------------
-if [[ $what == switch || $what == all ]]; then
-    aurora_pin=$(sed -n 's/^set(COS_AURORA_COMMIT "\([0-9a-f]*\)".*/\1/p' "$root/native/cmake/Aurora.cmake")
-    aurora=$root/build/aurora-${aurora_pin:0:7}
-    if [[ ! -f $aurora/cmake/aurora_core.cmake ]]; then
-        echo "docker/build: fetching Aurora ${aurora_pin:0:7} into build/aurora-${aurora_pin:0:7}"
-        run_linux -- "set -e; d=/work/build/aurora-${aurora_pin:0:7}; rm -rf \$d; mkdir -p \$d; cd \$d
-            git init -q; git remote add origin https://github.com/encounter/aurora.git
-            git fetch -q --depth 1 origin $aurora_pin
-            git -c advice.detachedHead=false checkout -q --detach FETCH_HEAD"
-    fi
-    echo "docker/build: Switch build (scripts/switch/build_native.sh, $jobs jobs)"
-    eur_args=()
-    [[ $game_id == GZLP01 ]] && eur_args=(--eur)
-    "$root/scripts/switch/build_native.sh" ${eur_args[@]+"${eur_args[@]}"} --aurora "$aurora" --assets "$assets" \
-        --recompcore "$root/ref/recompcore" --jobs "$jobs"
 fi

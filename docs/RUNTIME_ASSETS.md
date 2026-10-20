@@ -117,7 +117,7 @@ pure byte copy.
 
 ## Player distribution (agreed 2026-10-08)
 
-Players find the build of [INSTALL.md](../INSTALL.md) hard (Docker Desktop, WSL on Windows, a first
+Players found the build of the (since removed) Switch INSTALL.md hard (Docker Desktop, WSL on Windows, a first
 build of an hour or more). Options weighed:
 
 | Option | Verdict |

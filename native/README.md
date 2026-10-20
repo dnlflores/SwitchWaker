@@ -83,7 +83,7 @@ garbled, some geometry renders black, and there is no sound yet.
 
 **Platforms.** Only macOS on Apple Silicon is built and tested so far. Linux and Windows are
 untested, although Aurora supports them (the scripts, and `native/cmake/dsp_hle.cmake`'s arm64
-definitions, assume an arm64 Mac in places). The Switch is phase 7 of `docs/NATIVE_PORT_PLAN.md`.
+definitions, assume an arm64 Mac in places). iOS: [docs/IOS.md](../docs/IOS.md).
 
 ## Building on the Mac (phase 1)
 
@@ -436,22 +436,22 @@ COS_DISC=/nonexistent build/native-mac/switchwaker; echo $?   # 14
 | `COS_FPS60_GATE` | with `COS_FPS60_TEST=1`: paint B is dropped (the game frame presented once, as at 30 fps) while a scene request is pending, an overlap, wipe, screen fade, JUTFader fade or monotone change runs, or the stage changes, and for 3 frames after (`pc_fps60_paint_b_allowed`; it repainted half-built lists: black paint B frames during fades). Logged as `[cos] fps60: frame N: presented once (<reason>)` / `paint B again`, counted as `paint B dropped <n>` in the perf line. `0`: paint B even then (a test of the gate) |
 | `COS_FPS60_MODELS`, `COS_FPS60_MODELS_LOG`, `COS_FPS60_SKY` | with `COS_FPS60_TEST=1` (`docs/FPS60_PLAN.md` step C, `native/src/pc/game_hooks/pc_fps60_models.cpp`): paint B draws the J3D models at t between the last two draw passes (each model's world joint/envelope matrices, view-space draw matrices, or for CPU-skinned models the root's motion, blended; the sail packets' matrices likewise), unless the camera is cut; a model new, re-made, moved over 300 units or turned over 45 degrees (120 for a joint) is drawn as captured. The sun, moon, lens flare, stars and sky clouds (built around the camera eye) get the camera's turn only. `COS_FPS60_MODELS=0`: no object blend (step B alone); `COS_FPS60_SKY=0`: the sky gets the full camera delta (step B's behaviour); `COS_FPS60_MODELS_LOG=1`: every 2 s the blended / held counts per reason, the models of an unsupported kind and the first jumps. The perf line's `fps60:` part gives `models: <n> captured (<n> mtx), <n> blended (<n> mtx) per paint B, held ..., capture <ms>, blend <ms>` |
 | `COS_FPS60_PARTICLES`, `COS_FPS60_SHADOWS`, `COS_FPS60_SEA`, `COS_FPS60_LINES`, `COS_FPS60_BLUR`, `COS_FPS60_TELEPORT` | with `COS_FPS60_TEST=1` (`docs/FPS60_PLAN.md` step D; `native/src/pc/game_hooks/pc_fps60_particles.cpp`, `pc_fps60_misc.cpp`, `pc_fps60_models.cpp`), each on by default, `0` turns it off: `PARTICLES` paint B draws the JPA particles at t (positions, size, alpha, colours, rotation, the emitters' position, turn and frame; newborns moved with their emitter; the wake's texture along the strip), `SHADOWS` casts the real shadows from the blended models (the models' world joints blended before `dComIfGd_imageDrawShadow`) and blends the simple shadows' matrices, `SEA` the sea's wave heights and texture scroll, `LINES` the rope/line packets (`mDoExt_3DlineMat0/1_c`) and the boat's sail cloth, `BLUR` keeps the motion blur's decay per game frame with two presents (rate `255 * sqrt(a / 255)`, matrix step halved), `TELEPORT` holds a model whose root jumps (over 40 units and over 3x + 20 its previous frame's move). The perf line's `fps60:` part adds `particles: <n> captured, <n> blended ... per paint B, capture <ms>, blend <ms>`, `packet arrays <ms>`, `teleport <n>` and `lines: ...` |
-| `COS_FPS60_GUARD`, `COS_FPS60_BUDGET_MS`, `COS_FPS60_GPU_MS`, `COS_FPS60_FALLBACK_S`, `COS_FPS60_PACE` | with the 60 fps mode (`docs/FPS60_PLAN.md` step E, `native/src/pc/runtime/pc_fps60_budget.h`): before paint A is presented the game frame with paint B is predicted (elapsed paint A + logic, then running estimates of the split's present, the draw pass, paint B and the tail); over `COS_FPS60_BUDGET_MS` (default 32.4 = two retraces less 1 ms), or on the Switch with the GPU's p95 per present over `COS_FPS60_GPU_MS` (17) and dynres unable to go lower, the frame is presented once (`[cos] fps60: frame N: presented once (paint B over budget: ...)`, rate-limited). Over 25 % of the last 60 frames skipped or late (over two retraces + 1 ms): every frame presented once for `COS_FPS60_FALLBACK_S` (3 s; doubling to 8x while it keeps coming back, reset after 20 s without; ended early once the prediction stays 3 ms under the budget and under the one that started it for 2 s), then paint B again. The perf line's `fps60:` part ends with `budget: skipped <n> (time <n>, gpu <n>), at 30 <n> (fallbacks <n>), late <n>, predicted max <ms>, est present/draw/paint B/tail`. `COS_FPS60_GUARD=0` turns it off (it is off uncapped too). Paint A after a split frame waits until two retraces after the last paint A's wake (a late paint B no longer slows the game); `COS_FPS60_PACE=0` restores the old wait (one retrace after paint B's) |
+| `COS_FPS60_GUARD`, `COS_FPS60_BUDGET_MS`, `COS_FPS60_GPU_MS`, `COS_FPS60_FALLBACK_S`, `COS_FPS60_PACE` | with the 60 fps mode (`docs/FPS60_PLAN.md` step E, `native/src/pc/runtime/pc_fps60_budget.h`): before paint A is presented the game frame with paint B is predicted (elapsed paint A + logic, then running estimates of the split's present, the draw pass, paint B and the tail); over `COS_FPS60_BUDGET_MS` (default 32.4 = two retraces less 1 ms), the frame is presented once (`[cos] fps60: frame N: presented once (paint B over budget: ...)`, rate-limited). Over 25 % of the last 60 frames skipped or late (over two retraces + 1 ms): every frame presented once for `COS_FPS60_FALLBACK_S` (3 s; doubling to 8x while it keeps coming back, reset after 20 s without; ended early once the prediction stays 3 ms under the budget and under the one that started it for 2 s), then paint B again. The perf line's `fps60:` part ends with `budget: skipped <n> (time <n>, gpu <n>), at 30 <n> (fallbacks <n>), late <n>, predicted max <ms>, est present/draw/paint B/tail`. `COS_FPS60_GUARD=0` turns it off (it is off uncapped too). Paint A after a split frame waits until two retraces after the last paint A's wake (a late paint B no longer slows the game); `COS_FPS60_PACE=0` restores the old wait (one retrace after paint B's) |
 | `COS_FPS60_TEST_DELAY_MS`, `COS_FPS60_TEST_DELAY_B_MS` | tests of the budget guard on a fast machine: `<ms>[@<from>-<to>][/<every>]` busy time after the draw pass (game frames from..to, every n-th), and `<ms>` busy time in every paint B (the console's paint B is 4-7 ms, the Mac's ~0.3) |
 | `COS_DYNRES_HIGH60`, `COS_DYNRES_LOW60` | dynamic resolution's thresholds while the 60 fps mode is on (GPU ms per present, default 15 / 13; `COS_DYNRES_HIGH` / `_LOW`, 30 / 27, at 30 fps). The default levels are 5/6, 3/4 and 2/3 of `COS_FB_SCALE` (1.5 -> 1.25, 1.125, 1.0; 2.25 -> 1.875, 1.6875, 1.5); `COS_DYNRES=auto` (the menu's default, "Con 60 fps") runs it only while 60 fps is on, `0` never, `1` always |
 | `COS_SHOT_PAINT_A` | `1` with `COS_SHOT`/`COS_SHOT_EVERY` and `COS_FPS60_TEST=1`: a split frame's paint A is saved too, as `shot-<frame>a.png` (the frame's `shot-<frame>.png` is paint B) |
 | `COS_PAINT_PURITY` | with `COS_FPS60_TEST=1`, macOS: `1` compares the game's globals (`.data`/`.bss` symbols from `game/src/`, found through the executable's debug map) before and after paint B and logs each symbol paint B changed (`[cos] paint-purity frame N: ...`, a summary every 300 paints); `2` also the game's heaps (the object or process found there, and who points to it). `COS_PAINT_PURITY_REPEAT=1` paints B twice and reports what the second paint changes (accumulating state only), `COS_PAINT_PURITY_TRAP=1` (`2`: globals too) logs the backtrace of the first write to each change (an arm64 watchpoint), `COS_PAINT_PURITY_IGNORE=a,b` leaves out symbols (`native/src/pc/harness/pc_paint_purity.cpp`) |
-| `COS_HITCH_MS` | a `[cos] hitch` line for every game frame whose busy time is over this many ms: its split (events, begin_frame, cpd, aud, logic, painter, end_frame, other) and what else happened in it (pipelines built, texture bytes uploaded, resources loaded, the scene; on the Switch also the render worker, GL fence and disc counters) (0/unset: off on every host; 50 is a useful threshold on the Switch) |
-| `COS_FPS_OVERLAY` | `1`: a panel in the top-left corner (Aurora's ImGui, not in `COS_SHOT` images) with the frames per second over the last half second and the game thread's ms per frame; on the Switch also the render worker's ms per frame, its Queue::Submit part and Dawn's GL draws and texture binds per frame (0/unset: off, on every host; the options menu's Rendimiento > "Contador de FPS" turns it on) |
-| `COS_CACHE_DIR` | Aurora's caches (`pipeline_cache.db`, `dawn_cache.db`) in this directory instead of `<directory of the executable>/user/cache` (its parent must exist; not on the Switch). `run.sh` sets it to `<run dir>/cache` when `COS_CACHE_PER_RUN=1` (`native/tools/gen_pipeline_cache.sh` records each run's pipelines that way) |
-| `COS_PRECOMPILE_LOG` | `1`: `[cos] precompile N/M pipelines` once a second while Aurora's start-up pipeline warm-up (every pipeline its cache knows, plus the bundled `initial_pipeline_cache.db` next to the executable if there is one) runs, `[cos] precompile loading screen N/M ...` while the loading screen is up, and `[cos] precompile done: ...` at its end (0/unset: off; the Switch sets 1) |
-| `COS_PRECOMPILE_SCREEN` | when `COS_PRECOMPILE=boot` or `full` shows its loading screen (docs/SWITCH_BUILD.md, "Pipeline precompile"): `auto` (default) for the whole warm-up when its slow work would take more than `COS_PRECOMPILE_SCREEN_MIN_S` (default 3) s: every pipeline left if the first builds (up to 8, at most 0.3 s) average more than `COS_PRECOMPILE_SLOW_MS` (default 25) ms (a cold shader cache), else those past the point where the last warm-up stopped (`<cache>/precompile_state.txt`: `complete`, or `partial` N of M; no record counts as none built); the screen shows "N/M, ~X s" (Spanish or English after the console's language or `LANG`; `COS_LANG=es\|en` overrides) and builds back to back; otherwise the game starts at once and the warm-up builds behind the logos (Switch: if the builds turn slow during the logo scene and the slow work left passes the same limit, the screen comes up there); `priority` the earlier auto (the screen for the priority set when the first builds are slow); `always` the priority set's screen whenever it is not built; `never` none. One `[cos] precompile screen` line logs the choice with the counts and the estimate |
-| `COS_PRECOMPILE` | the Switch's boot warm-up (docs/SWITCH_BUILD.md, "Pipeline precompile"): `boot` (Switch default) a "Preparing shaders" loading screen (Aurora's ImGui) before the game starts when `COS_PRECOMPILE_SCREEN` calls for one (`auto`: until every queued pipeline is built; `priority`/`always`: until the pipelines the bundled cache marks priority 0, the boot path, are built), then the rest are built behind the logos and menus with "Shaders N/M" in the bottom-right corner until the game first enters its PLAY scene, where the warm-up ends; `full` the loading screen until every known pipeline is built; `all` no loading screen, every known pipeline built (indicator until done); `off` none. On the Mac unset changes nothing (Aurora's warm-up runs to the end, nothing drawn); set, the loading screen and indicator are drawn to try them (`boot` waits for as many pipelines as the bundled file next to `switchwaker` marks priority 0; `off` only hides them) |
+| `COS_HITCH_MS` | a `[cos] hitch` line for every game frame whose busy time is over this many ms: its split (events, begin_frame, cpd, aud, logic, painter, end_frame, other) and what else happened in it (pipelines built, texture bytes uploaded, resources loaded, the scene) (0/unset: off on every host) |
+| `COS_FPS_OVERLAY` | `1`: a panel in the top-left corner (Aurora's ImGui, not in `COS_SHOT` images) with the frames per second over the last half second and the game thread's ms per frame (0/unset: off, on every host; the options menu's Rendimiento > "Contador de FPS" turns it on) |
+| `COS_CACHE_DIR` | Aurora's caches (`pipeline_cache.db`, `dawn_cache.db`) in this directory instead of `<directory of the executable>/user/cache` (its parent must exist). `run.sh` sets it to `<run dir>/cache` when `COS_CACHE_PER_RUN=1` (`native/tools/gen_pipeline_cache.sh` records each run's pipelines that way) |
+| `COS_PRECOMPILE_LOG` | `1`: `[cos] precompile N/M pipelines` once a second while Aurora's start-up pipeline warm-up (every pipeline its cache knows, plus the bundled `initial_pipeline_cache.db` next to the executable if there is one) runs, `[cos] precompile loading screen N/M ...` while the loading screen is up, and `[cos] precompile done: ...` at its end (0/unset: off) |
+| `COS_PRECOMPILE_SCREEN` | when `COS_PRECOMPILE=boot` or `full` shows its loading screen: `auto` (default) for the whole warm-up when its slow work would take more than `COS_PRECOMPILE_SCREEN_MIN_S` (default 3) s: every pipeline left if the first builds (up to 8, at most 0.3 s) average more than `COS_PRECOMPILE_SLOW_MS` (default 25) ms (a cold shader cache), else those past the point where the last warm-up stopped (`<cache>/precompile_state.txt`: `complete`, or `partial` N of M; no record counts as none built); the screen shows "N/M, ~X s" (Spanish or English after the console's language or `LANG`; `COS_LANG=es\|en` overrides) and builds back to back; otherwise the game starts at once and the warm-up builds behind the logos; `priority` the earlier auto (the screen for the priority set when the first builds are slow); `always` the priority set's screen whenever it is not built; `never` none. One `[cos] precompile screen` line logs the choice with the counts and the estimate |
+| `COS_PRECOMPILE` | the boot warm-up: `boot` a "Preparing shaders" loading screen (Aurora's ImGui) before the game starts when `COS_PRECOMPILE_SCREEN` calls for one (`auto`: until every queued pipeline is built; `priority`/`always`: until the pipelines the bundled cache marks priority 0, the boot path, are built), then the rest are built behind the logos and menus with "Shaders N/M" in the bottom-right corner until the game first enters its PLAY scene, where the warm-up ends; `full` the loading screen until every known pipeline is built; `all` no loading screen, every known pipeline built (indicator until done); `off` none. On the Mac unset changes nothing (Aurora's warm-up runs to the end, nothing drawn); set, the loading screen and indicator are drawn to try them (`boot` waits for as many pipelines as the bundled file next to `switchwaker` marks priority 0; `off` only hides them) |
 | `COS_PERF` | a file that gets one CSV row per game frame (step 6.7; `run.sh --perf perf.csv` puts it in the run directory); see "Performance instrumentation" |
 | `COS_RUN_DIR` | where `backtrace.txt` and `stall.txt` go (set by `run.sh`) |
-| `COS_FULLSCREEN` | `1`: open fullscreen (Aurora's `startFullscreen`, borderless at the desktop's resolution) instead of the 960x720 window; F11 or Alt+Enter toggles it at run time (`VISetWindowFullscreen`). Not on the Switch |
-| `COS_ASPECT` | `4:3` (default on the Mac), `16:9` (default on the Switch) or `16:10`: the widescreen option, the community 16:9 Gecko code done in C (wider view and culling, HUD at the screen edges) with Aurora presenting the picture at that aspect ([docs/WIDESCREEN.md](../docs/WIDESCREEN.md)) |
-| `COS_FB_SCALE` | the internal resolution: Aurora's frame-buffer scale (`VISetFrameBufferScale`) of the 640x480 EFB, widened to the window's aspect; at 16:9 `1.5` = 1280x720, `1.125` = 960x540, `1.0` = 854x480 (EFB copies scale with it; the present pass resamples to the window; `COS_SHOT` images are at this size). Unset or `0`: the window's own size (the Mac's default); the Switch sets `1.5` handheld, `2.25` docked ([docs/SWITCH_BUILD.md](../docs/SWITCH_BUILD.md)) |
+| `COS_FULLSCREEN` | `1`: open fullscreen (Aurora's `startFullscreen`, borderless at the desktop's resolution) instead of the 960x720 window; F11 or Alt+Enter toggles it at run time (`VISetWindowFullscreen`) |
+| `COS_ASPECT` | `4:3` (default), `16:9` or `16:10`: the widescreen option, the community 16:9 Gecko code done in C (wider view and culling, HUD at the screen edges) with Aurora presenting the picture at that aspect ([docs/WIDESCREEN.md](../docs/WIDESCREEN.md)) |
+| `COS_FB_SCALE` | the internal resolution: Aurora's frame-buffer scale (`VISetFrameBufferScale`) of the 640x480 EFB, widened to the window's aspect; at 16:9 `1.5` = 1280x720, `1.125` = 960x540, `1.0` = 854x480 (EFB copies scale with it; the present pass resamples to the window; `COS_SHOT` images are at this size). Unset or `0`: the window's own size (the default) |
 | `COS_HD_TEXTURES` | `1`: replace the game's textures from a Dolphin-format HD pack (off by default). `COS_HD_PACK` names the pack: a directory converted by `scripts/hd/build_hd_pack.sh` (`index.bin` + `dataNN.bin`) or a Dolphin texture folder of loose `tex1_*.dds`; default `<user>/hd_textures`. Also `COS_HD_BUDGET_MB`, `COS_HD_PUBLISH_MB`, `COS_HD_WORKERS`, `COS_HD_STATS_EVERY`, `COS_HD_CENSUS`, `COS_HD_TOGGLE_FRAMES` ([docs/HD_TEXTURES.md](../docs/HD_TEXTURES.md)) |
 | `COS_DOF` | GPU A/B option (`pc_gpu_opts.h`), default on: `0` skips `drawDepth`'s depth of field (m_Do_graphic.cpp, every play frame: a Z16 and a half-size colour EFB copy, their conversion passes and a full-screen composite) unless the monotone effect or the motion blur needs it; the letterbox bars stay. Far scenery is no longer softened. For measurement |
 
@@ -465,7 +465,7 @@ final spin; empty where the clock is missing). The split adds up to `busy_ms`: `
 events and `aurora_begin_frame`), `mDoCPd_Read`, `mDoAud_Execute`, `logic_ms` (`fapGm_Execute`
 without the painter), `painter_ms` (`mDoGph_Painter`, the GX encode, without the pace wait inside
 it), `aurora_end_frame` and `other_ms` (the rest of main01's loop). The `[cos] perf` lines of
-`COS_PERF_EVERY` average the same numbers, so the Mac's CSV and the Switch's log compare
+`COS_PERF_EVERY` average the same numbers, so the CSV and the log compare
 directly. The game thread (the process main thread) runs at QoS USER_INTERACTIVE on macOS, logged
 as `[cos] game thread: QoS`. The benchmark variant is a build directory of its own:
 `cmake -S native -B build/native-mac-perf -G Ninja -DCOS_PERF_BUILD=ON` (Release at `-O2`, every
@@ -495,16 +495,16 @@ Exit codes: 0 reached, 1 smoke check failed, 2 usage error, 10 timeout, 11 stall
 ### Options menu
 
 `pc_menu.cpp` / `pc_settings.cpp` (API: `native/include/pc/pc_settings.h`): an ImGui options window
-opened with **F1** or **L+R+Z** (a GameCube-style pad; a `COS_INPUT` script only in `COS_SMOKE=options-menu`) on the Mac and
-**Minus** on the Switch (ZL+ZR+Minus elsewhere); **B**/Esc or the same button(s) close it. Tabs *Gráficos*,
+opened with **F1** or **L+R+Z** (a GameCube-style pad; a `COS_INPUT` script only in `COS_SMOKE=options-menu`), or
+ZL+ZR+Minus; **B**/Esc or the same button(s) close it. Tabs *Gráficos*,
 *Controles*, *Rendimiento*, *Calidad de vida* and *Depuración* (*Graphics*, *Controls*, *Performance*, *Quality of life*, *Debug* in English; a help line for the selected row); controller
 (D-pad/stick, A change, B back, L/R tab), keyboard (arrows, Enter, Esc, Q/E) or mouse. While it is
 open the PLAY scene is paused (hit-stop pause timer) and the game gets no pad input.
 
 - Each row is an existing variable (`COS_FB_SCALE`, `COS_DYNRES`, `COS_DOF`, `COS_ASPECT`, `COS_HD_TEXTURES`,
-  `COS_SWITCH_GPU_PROFILE`, `COS_FPS_OVERLAY`, `COS_PRECOMPILE`, `COS_PRECOMPILE_SCREEN`,
+  `COS_FPS_OVERLAY`, `COS_PRECOMPILE`, `COS_PRECOMPILE_SCREEN`,
   `COS_PERF_EVERY`, `COS_GPU_GROUPS`) or a new one: `COS_FPS_OVERLAY_DETAIL=full|compact`,
-  `COS_PERF_LOG=0|1` (hide/show the perf and perf-switch lines). `COS_ASPECT`, `COS_PRECOMPILE` and
+  `COS_PERF_LOG=0|1` (hide/show the perf lines). `COS_ASPECT`, `COS_PRECOMPILE` and
   `COS_PRECOMPILE_SCREEN` apply at the next start ("requiere reiniciar"); the rest at once.
 - Rendimiento > "60 fps (interpolación)" / "60 fps (interpolation)" (`COS_FPS60=0|1`, per operation
   mode, default off): each game frame of two retraces is presented twice, the second with the camera
@@ -519,13 +519,13 @@ open the PLAY scene is paused (hit-stop pause timer) and the game gets no pad in
   with 60 fps) or "Siempre" / "Always" (`1`). Levels down to 2/3 of the internal resolution.
 - Controles (`native/include/pc/pc_button_remap.h`, `docs/BUTTON_REMAP_DESIGN.md`, issue #15): one row per
   GameCube action (A, B, X, Y, Z, L, R, START, the D-pad) naming the controller button that does it, as
-  printed on a Switch controller ("botón A", "ZL", "+", "cruceta arriba", "clic stick izq."...). A on a
+  printed on a Nintendo-layout controller ("botón A", "ZL", "+", "cruceta arriba", "clic stick izq."...). A on a
   row: "Pulsa un botón... (- cancela)"; once every button is released, the next button (or ZL/ZR) pressed
   is assigned, swapping with the action that had it ("Intercambiado con X"); Minus cancels, and so do 5 s
-  without a press. Minus is never assignable (it opens this menu on the Switch), and the menu reads the
+  without a press. Minus is never assignable (it opens this menu with ZL+ZR), and the menu reads the
   controllers itself, so a remap never changes its own navigation. The last row, "Restaurar controles
   por defecto", puts every action back. Saved as `COS_PAD_A` ... `COS_PAD_RIGHT` lines, written only for
-  an action off its default (by position on the Mac and Linux, by label on the Switch); deleting the
+  an action off its default (by position); deleting the
   `COS_PAD_*` lines of `settings.ini` restores the defaults too. Applies to every controller with a
   standard layout (Pro Controller, Joy-Cons, PlayStation, generic); a GameCube adapter and Xbox
   controllers (whose Aurora table differs) keep their own, unremapped.
@@ -540,24 +540,20 @@ open the PLAY scene is paused (hit-stop pause timer) and the game gets no pad in
   sea room on the boat; PLAY scene only), a screenshot (`shot-<frame>.png` in `COS_RUN_DIR`,
   without the menu), reload the settings file; and the rows for developers: the perf log interval
   and lines (`COS_PERF_EVERY`, `COS_PERF_LOG`), the hitch lines (`COS_HITCH_MS`), the HD texture
-  stats lines (`COS_HD_STATS_EVERY`), the GPU timers per group (`COS_GPU_GROUPS`), the USB live log
-  (`COS_USB_LOG`, Switch), and the debug server (`COS_DEBUG_SERVER`, Switch, at the
-  next start).
+  stats lines (`COS_HD_STATS_EVERY`) and the GPU timers per group (`COS_GPU_GROUPS`).
   Gráficos, Controles, Rendimiento and Calidad de vida keep the options meant for players.
-- Values are saved to `user/settings.ini` next to the executable (Switch:
-  `/switch/switchwaker/native/user/settings.ini`; `COS_SETTINGS=<path>` names another file,
+- Values are saved to `user/settings.ini` next to the executable (iOS: `settings.ini` in
+  `COS_USER_DIR`, the app container; `COS_SETTINGS=<path>` names another file,
   and `run.sh` gives every run its own `<run dir>/settings.ini`). Lines `NAME=value`, or
-  `NAME@handheld=` / `NAME@docked=` for the per-mode rows (internal and dynamic resolution): the Switch applies the other mode's values when docked or undocked; the Mac is handheld
+  `NAME@handheld=` / `NAME@docked=` for the per-mode rows (internal and dynamic resolution): the Mac is handheld
   unless `COS_OPERATION_MODE=docked`. The file may end with a `[dev]` section: `NAME=value` lines of
   developer variables without a menu row, set in the environment at start; the menu writes it back
-  unchanged and ignores a menu setting there
-  ([switch/native/settings-dev.example.ini](../switch/native/settings-dev.example.ini)). It is how
-  the Switch, which has no environment, gets them (the `native/env.txt` of older builds is moved
-  into the file once and kept as `env.txt.old`).
+  unchanged and ignores a menu setting there (the `native/env.txt` of older builds is moved into the
+  file once and kept as `env.txt.old`).
 - Precedence: on the Mac and Linux the environment at start wins over the file (and its `[dev]`),
   so test kits keep working; such rows show as fixed (`[fijo]`, `[set]` in English) and cannot be
-  changed. Nothing is fixed on the Switch.
-- Language: Spanish or English, as the shader loading screen (the console's language, else
+  changed.
+- Language: Spanish or English, as the shader loading screen (the system language, else
   `LC_ALL` or `LANG`; `COS_LANG=es|en` overrides). The rows' texts are the `label`/`help` and
   `labelEn`/`helpEn` fields of `PcSettingDesc`; the log keeps the Spanish tab names.
 - Other modules add rows with `pc_settings_register` or follow one with `pc_settings_get` /
@@ -589,16 +585,7 @@ The fx and model/screen sweeps are the `fx-sweep` and `res-sweep` smoke tests (`
 `COS_RES_SWEEP` above). Any of these takes `--exe build/native-mac-asan/switchwaker` (the ASan build,
 recipe in `native/CMakeLists.txt`) and `COS_HEAP_CHECK=1` to check every JKR heap each frame.
 
-## The Switch (phase 7)
+## Performance lines
 
-`scripts/switch/build_native.sh` builds this tree as a Switch NRO, `build/switch-native/switchwaker.nro`,
-in the translated port's devkitPro container, with the same asset headers and Aurora checkout as the
-Mac build: docs/SWITCH_BUILD.md, "Native port", has the build, the copy to the console, the run
-options (the options menu, and `COS_*` developer variables in the `[dev]` section of
-`native/user/settings.ini` on the SD card) and the crash reports. The Switch build lives in
-`switch/native` (Aurora patches, a GameCube disc reader standing in for nod, the harness's platform
-layer); in this tree it only adds code under `#if defined(__SWITCH__)` in `src/pc` (no signals,
-`backtrace()` or `_Exit` there: libnx's exception handler, `svcQueryMemory` frame walks and an exit
-that writes the logs out) and the `COS_EXE_ENTRY` hook of `cmake/executable.cmake`. `game` is
-unchanged. `COS_PERF_EVERY=<n>` (any host, off by default) logs the
+`COS_PERF_EVERY=<n>` (any host, off by default) logs the
 game thread's time per frame every n frames.

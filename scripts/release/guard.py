@@ -5,7 +5,7 @@ or any key.
 usage: guard.py ARTIFACT.zip|DIR [...]
 
 Release packages carry this repository's sources only (scripts/release/package_release.sh). The game is
-built by each player from their own disc (scripts/switch/make_sd.sh). This check rejects, by name and
+built by each player from their own disc. This check rejects, by name and
 by content:
   - disc images and disc files: *.iso, *.gcm, *.rvz, *.gcz, *.ciso, *.nkit.*, *.wbfs, *.dol, *.rel,
     and the disc's archive formats when they appear as files (*.arc, *.szs, *.bmd, *.bdl, *.bti, *.aw);

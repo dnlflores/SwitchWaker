@@ -7,13 +7,13 @@
  * names. Where a value comes from, highest first:
  *   1. on the Mac and Linux, the process environment at start (test kits and run.sh keep working
  *      unchanged). Such a setting is locked: the menu shows it with a note and does not change
- *      it. The Switch has no such environment: nothing is locked there.
- *   2. the settings file: <user dir>/settings.ini (the Switch: /switch/switchwaker/native/
- *      user/settings.ini on the SD card; the Mac: user/settings.ini next to the executable;
+ *      it.
+ *   2. the settings file: <user dir>/settings.ini (iOS: COS_USER_DIR, the app container's
+ *      Application Support folder; the Mac: user/settings.ini next to the executable;
  *      COS_SETTINGS=<path> names another file, run.sh gives each run its own). Lines
  *      NAME=value, or NAME@handheld=value / NAME@docked=value for a setting with one value per
  *      operation mode; '#' starts a comment.
- *   3. the platform default (the Switch's setDefault list in cos_switch.cpp, or the code's own).
+ *   3. the code's own default.
  * The file may end with a [dev] section: everything after a "[dev]" line, NAME=value lines of
  * developer variables (COS_TRACE, COS_BOOT_STAGE, MESA_..., any variable the code reads) that
  * have no row in the menu. They are set in the environment at start, after the menu's values; a
@@ -60,7 +60,6 @@ typedef enum PcOperationMode {
 #define PC_SETTING_RESTART 0x1u   /* takes effect at the next start ("requiere reiniciar") */
 #define PC_SETTING_PER_MODE 0x2u  /* one value per operation mode */
 #define PC_SETTING_NO_SAVE 0x4u   /* a value for this run only, never written to the file */
-#define PC_SETTING_SWITCH_ONLY 0x8u /* shown on the Mac, but only the Switch acts on it */
 #define PC_SETTING_REMAP 0x10u     /* a button remap action (pc_button_remap.h): the menu shows it as a
                                       "press a button" row, not a row that cycles its choices */
 

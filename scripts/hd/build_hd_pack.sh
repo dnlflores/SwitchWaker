@@ -9,10 +9,9 @@
 # texture set is the pack's GZL folder (found anywhere under PACK; the "-[Optional Textures]-"
 # folders are not used unless given with --overlay, e.g. --overlay "<extracted>/-[Optional
 # Textures]-/[Characters] Link - Tunic - FS - Green", whose files override GZL's of the same name).
-# --max-size (default 1024, the Mac and docked; 512 suits the Switch handheld) caps the larger side
+# --max-size (default 1024; 512 for devices short of memory) caps the larger side
 # of each texture; mips are generated (see native/tools/hd_pack/cos_hd_pack.cpp). The output
-# (default build/hd-pack-<max-size>/) is index.bin + dataNN.bin: point COS_HD_PACK at it on the Mac,
-# or copy it to the Switch with scripts/switch/push_hd_pack.sh.
+# (default build/hd-pack-<max-size>/) is index.bin + dataNN.bin: point COS_HD_PACK at it.
 #
 # Everything this writes is derived from the pack's art: it stays under build/ (gitignored) or on
 # the player's own SD card, never in git.

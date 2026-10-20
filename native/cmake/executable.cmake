@@ -211,7 +211,7 @@ endif ()
 add_dependencies(switchwaker ${COS_MODULES})
 target_link_options(switchwaker PRIVATE "@${_exe_rsp}")
 # The process entry point: aurora::main, whose main calls the game's (aurora_main). A platform
-# build may set COS_EXE_ENTRY to its own entry library first (the Switch build, switch/native).
+# build may set COS_EXE_ENTRY to its own entry library first (the iOS app, ios/CMakeLists.txt).
 if (NOT COS_EXE_ENTRY)
     set(COS_EXE_ENTRY aurora::main)
 endif ()

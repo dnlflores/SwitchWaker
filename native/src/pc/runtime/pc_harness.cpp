@@ -12,9 +12,6 @@
 #include <ctime>
 #include <unistd.h>
 
-#if defined(__SWITCH__)
-#include "cos_switch.h"
-#endif
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #include <pthread.h>
@@ -90,11 +87,7 @@ bool envFlag(const char* name, bool fallback) {
 
 void waitForever() {
     for (;;) {
-#if defined(__SWITCH__)
-        usleep(1000 * 1000);
-#else
         pause();
-#endif
     }
 }
 
@@ -144,7 +137,7 @@ void pc_harness_init(int argc, char* argv[]) {
     (void)argv;
     sStartNs = monotonicNs();
     // The options menu's settings file (pc_settings.h) into the environment before anything reads
-    // it (on the Switch cos_switch_start did it already, before its defaults).
+    // it.
     pc_settings_load_early();
 
     // Line-buffered stdout: the game reports with printf/OSReport into a pipe or file; a watchdog
@@ -281,12 +274,7 @@ void pc_exit(int code) {
             funlockfile(f);
         }
     }
-#if defined(__SWITCH__)
-    // Writes the logs out (SD card, USB) and ends the process (switch/native/source).
-    cos_switch_exit(code);
-#else
     _Exit(code);
-#endif
 }
 
 } // extern "C"

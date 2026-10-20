@@ -44,13 +44,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#if defined(__SWITCH__)
-#include "JSystem/JAudio/JASAudioThread.h"
-#include "m_Do/m_Do_dvd_thread.h"
-#include "cos_switch.h"
-
-#include <lib/gfx/render_worker.hpp>
-#endif
 
 // Aurora's (include/dolphin/vi.h); the game's <dolphin/vi.h> comes first on the include path.
 extern "C" void VISetFrameBufferScale(float scale);
@@ -74,13 +67,8 @@ void makeDir(const char* path) {
 }
 
 // COS_USER_DIR when set (the iOS app container); otherwise <executable directory>/user.
-// Caches default to user/cache, overridable with COS_CACHE_DIR;
-// on the Switch <COS_SWITCH_ROOT>/user (the native port's directory on the SD card, switch/native/source).
+// Caches default to user/cache, overridable with COS_CACHE_DIR.
 void makeUserPaths(const char* argv0) {
-#if defined(__SWITCH__)
-    (void)argv0;
-    snprintf(sUserPath, sizeof(sUserPath), "%s/user", COS_SWITCH_ROOT);
-#else
     if (const char* userDir = getenv("COS_USER_DIR"); userDir != nullptr && userDir[0] != '\0') {
         snprintf(sUserPath, sizeof(sUserPath), "%s", userDir);
     } else {
@@ -99,16 +87,13 @@ void makeUserPaths(const char* argv0) {
         }
         snprintf(sUserPath, sizeof(sUserPath), "%.*s/user", dirLen, path);
     }
-#endif
     snprintf(sCachePath, sizeof(sCachePath), "%s/cache", sUserPath);
-#if !defined(__SWITCH__)
     // COS_CACHE_DIR: Aurora's caches (pipeline_cache.db, dawn_cache.db) in that directory instead,
     // e.g. a fresh one per run for native/tools/gen_pipeline_cache.sh, which records the pipelines
     // a run uses. Its parent must exist.
     if (const char* cacheDir = getenv("COS_CACHE_DIR"); cacheDir != nullptr && cacheDir[0] != '\0') {
         snprintf(sCachePath, sizeof(sCachePath), "%s", cacheDir);
     }
-#endif
     makeDir(sUserPath);
     makeDir(sCachePath);
 }
@@ -162,21 +147,13 @@ void* threadLaunchHook(OSThread* thread) {
 void threadStartHook(OSThread* thread, void* launchValue) {
     (void)thread;
     JKRHeap::sCurrentHeap = static_cast<JKRHeap*>(launchValue);
-#if defined(__SWITCH__)
-    // The threads whose CPU time the perf-switch lines report by name (thread_wrap.c).
-    if (thread == &JASystem::TAudioThread::sAudioThread) {
-        cos_switch_thread_role(COS_SWITCH_THREAD_AUDIO);
-    } else if (thread == &mDoDvdThd::l_thread) {
-        cos_switch_thread_role(COS_SWITCH_THREAD_DVD);
-    }
-#endif
 }
 
 // COS_FB_SCALE: the internal resolution, as Aurora's frame-buffer scale (VISetFrameBufferScale,
 // Dusklight's "internal resolution" setting): the EFB is the game's 640x480 times the scale, widened
 // to the window's aspect (16:9: 1.5 = 1280x720, 1.125 = 960x540, 1.0 = 854x480), and the present
 // pass resamples it to the window. Unset or 0: the window's own size (Aurora's default). EFB copies
-// scale with it. The Switch sets 1.5 (switch/native/source/cos_switch.cpp).
+// scale with it.
 void applyFrameBufferScale(const AuroraWindowSize& window) {
     const char* v = getenv("COS_FB_SCALE");
     if (v == nullptr || *v == '\0') {
@@ -253,14 +230,6 @@ void pc_aurora_init(int argc, char* argv[]) {
         writef(STDERR_FILENO, "[cos] aurora_initialize returned no window\n");
         pc_exit(PC_EXIT_USAGE);
     }
-#if defined(__SWITCH__)
-    // Name Aurora's render worker for its CPU time in the perf-switch lines (thread_wrap.c).
-    aurora::gfx::render_worker::enqueue_work([] {
-        if (aurora::gfx::render_worker::is_worker_thread()) {
-            cos_switch_thread_role(COS_SWITCH_THREAD_RENDER);
-        }
-    });
-#endif
     applyFrameBufferScale(info.windowSize);
     if (pc_aspect_wide()) {
         // The game draws an anamorphic picture into the 640x480 EFB (pc_aspect.h): Aurora presents

@@ -140,7 +140,7 @@ static std::vector<unsigned int> parseFrames(const char* list) {
 int pc_mist_lowres(void) {
     static std::vector<unsigned int> sOnlyFrames;
     if (sMistLowres < 0) {
-        // Default 4 (docs/SWITCH_PERF_STUDY.md, section 8: Mac A/B of the same frame within 7/255,
+        // Default 4 (Mac A/B of the same frame within 7/255,
         // mean 1.5/255, at 2, 3 and 4 alike); COS_MIST_LOWRES=0 draws the mist as before.
         const char* v = getenv("COS_MIST_LOWRES");
         sMistLowres = v == nullptr || v[0] == '\0' ? 4 : atoi(v);

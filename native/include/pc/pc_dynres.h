@@ -1,6 +1,6 @@
 /*
- * pc_dynres.h - dynamic resolution of the 3D scene (native/src/pc/features/pc_dynres.cpp;
- * docs/SWITCH_PERF_STUDY.md, section 8). Off by default.
+ * pc_dynres.h - dynamic resolution of the 3D scene (native/src/pc/features/pc_dynres.cpp).
+ * Off by default.
  *
  * COS_DYNRES=1            a safety net for GPU-bound scenes: the painter draws the 3D part of each
  *                         frame into the top-left part of the EFB (Aurora's content scale,

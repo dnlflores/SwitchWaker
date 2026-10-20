@@ -83,23 +83,14 @@ const ActionInfo kActionInfo[kActions] = {
 };
 
 // The SDL gamepad button (or Aurora's trigger-as-button value) behind each input. The face buttons
-// are named by their printed letter: SDL 3 on the Mac and Linux reports them by position (a Switch
-// controller's A is east), Aurora's SDL shim on the Switch by label (the Switch's A is south: it maps
-// HidNpadButton_A to SDL_GAMEPAD_BUTTON_SOUTH, switch/aurora/sdl3_shim). defaultMapFor follows the same
-// split, so the default map always names the buttons Aurora's Pro Controller table uses.
+// are named by their printed letter: SDL 3 reports them by position (a Nintendo-layout controller's A
+// is east), so the default map (defaultMapFor(false)) names the buttons Aurora's Pro Controller table uses.
 u32 nativeButton(Input in) {
     switch (in) {
-#if defined(__SWITCH__)
-    case Input::A: return SDL_GAMEPAD_BUTTON_SOUTH;
-    case Input::B: return SDL_GAMEPAD_BUTTON_EAST;
-    case Input::X: return SDL_GAMEPAD_BUTTON_WEST;
-    case Input::Y: return SDL_GAMEPAD_BUTTON_NORTH;
-#else
     case Input::A: return SDL_GAMEPAD_BUTTON_EAST;
     case Input::B: return SDL_GAMEPAD_BUTTON_SOUTH;
     case Input::X: return SDL_GAMEPAD_BUTTON_NORTH;
     case Input::Y: return SDL_GAMEPAD_BUTTON_WEST;
-#endif
     case Input::L: return SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
     case Input::R: return SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
     case Input::ZL: return PAD_NATIVE_TRIGGER_LEFT;

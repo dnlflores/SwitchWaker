@@ -232,7 +232,7 @@ def collapse_log(path):
     os.replace(tmp, path)
 
 
-SKIP_FRAME = re.compile(r"^(pc_|OSPanic|OSReport|cos_switch_|JUTAssertion|JUTException|"
+SKIP_FRAME = re.compile(r"^(pc_|OSPanic|OSReport|JUTAssertion|JUTException|"
                         r"abort|__|std::)")
 
 

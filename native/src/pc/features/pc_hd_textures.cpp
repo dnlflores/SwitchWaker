@@ -59,9 +59,6 @@
 #include <unordered_set>
 #include <vector>
 
-#if defined(__SWITCH__)
-#include "cos_switch.h"
-#endif
 
 namespace pc {
 
@@ -74,23 +71,6 @@ constexpr size_t kEntrySize = 32;
 constexpr size_t kDdsHeaderSize = 148; // magic + DDS_HEADER + DDS_HEADER_DXT10
 constexpr size_t kRegisterSlice = 128; // names per registration call
 
-#if defined(__SWITCH__)
-constexpr uint64_t kDefaultBudgetMb = 512;
-constexpr uint64_t kDefaultPublishMb = 4;
-constexpr uint32_t kDefaultWorkers = 1;
-// Game-thread time per frame for (un)registering names, and the publish budget in estimated GPU
-// work. The cost model is the Switch's after dawn-switch-gl-compressed-upload.patch (one
-// glCompressedTexSubImage2D per level): about 0.3 ms to create a texture (glTexStorage, a Mesa bo),
-// 0.1 ms per level, 2 ms per MiB (a staging copy and the GPU copy); scaled at run time by Dawn's
-// measured upload and creation times.
-constexpr uint64_t kDefaultRegisterUs = 2000;
-constexpr uint64_t kDefaultPublishUs = 2500;
-constexpr uint64_t kDefaultCostTextureUs = 300;
-constexpr uint64_t kDefaultCostLevelUs = 100;
-constexpr uint64_t kDefaultCostMiBUs = 2000;
-constexpr uint64_t kDefaultRescanKb = 2048;
-constexpr uint64_t kDefaultStatsEvery = 0; // players: no stats lines (the options menu turns them on)
-#else
 constexpr uint64_t kDefaultBudgetMb = 1024;
 constexpr uint64_t kDefaultPublishMb = 12;
 constexpr uint32_t kDefaultWorkers = 0;
@@ -101,7 +81,6 @@ constexpr uint64_t kDefaultCostLevelUs = 5;
 constexpr uint64_t kDefaultCostMiBUs = 300;
 constexpr uint64_t kDefaultRescanKb = 8192;
 constexpr uint64_t kDefaultStatsEvery = 300;
-#endif
 
 uint32_t rd32(const uint8_t* p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
 uint16_t rd16(const uint8_t* p) { return (uint16_t)(p[0] | p[1] << 8); }
@@ -614,30 +593,6 @@ void setCap(uint32_t cap, const char* why) {
            old, cap, why, pc_settings_mode() == PC_MODE_DOCKED ? "docked" : "handheld", queued);
 }
 
-#if defined(__SWITCH__)
-// The adaptive cost scale: what Dawn measured for texture uploads and creation over what the
-// published textures were estimated to cost, every 30 frames with enough work to compare.
-void adaptCostScale(const aurora::texture::ReplacementStats& s) {
-    CosSwitchGfxStats g{};
-    cos_switch_gfx_stats(&g);
-    const uint64_t measured = g.glTexUploadNs + g.glTexCreateNs;
-    const uint64_t dEst = s.publishEstNsTotal - std::min(s.publishEstNsTotal, sState.prevEstNs);
-    const uint64_t dMeasured = measured - std::min(measured, sState.prevMeasuredNs);
-    if (dEst < 2000000) {
-        // Not enough HD publishing in the window to tell; keep accumulating (only the baseline
-        // of the Dawn counters moves on, so the originals' uploads alone do not count).
-        if (dEst == 0) {
-            sState.prevMeasuredNs = measured;
-        }
-        return;
-    }
-    const double ratio = std::clamp((double)dMeasured / (double)dEst, 0.25, 8.0);
-    sState.costScale = std::clamp(0.5 * sState.costScale + 0.5 * ratio, 0.25, 8.0);
-    sState.prevEstNs = s.publishEstNsTotal;
-    sState.prevMeasuredNs = measured;
-    applyRuntimeConfig();
-}
-#endif
 
 void logStats(unsigned int frame) {
     const auto s = aurora::texture::stats();
@@ -875,11 +830,6 @@ void pc_hd_textures_frame_end(unsigned int frame) {
             sState.workThisFrame = true;
             sState.prevPublishes = s.publishes;
         }
-#if defined(__SWITCH__)
-        if (frame % 30 == 0 && sState.publishUs != 0) {
-            adaptCostScale(s);
-        }
-#endif
     }
     // Hitch counters: the interval since the previous frame end (pace wait included).
     const uint64_t now = monotonicNs();

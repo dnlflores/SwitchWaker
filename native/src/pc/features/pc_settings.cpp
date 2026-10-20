@@ -23,9 +23,6 @@
 #include <unistd.h>
 #include <vector>
 
-#if defined(__SWITCH__)
-#include "cos_switch.h"
-#endif
 
 extern char** environ;
 
@@ -91,9 +88,6 @@ void computePath() {
         s.path = p;
         return;
     }
-#if defined(__SWITCH__)
-    s.path = COS_SWITCH_ROOT "/user/settings.ini";
-#else
     char exe[PATH_MAX] = {};
     pc::executablePath(exe, sizeof(exe));
     char real[PATH_MAX];
@@ -106,7 +100,6 @@ void computePath() {
         }
     }
     s.path = dir + "/user/settings.ini";
-#endif
 }
 
 // One line of f without its line break (false at the end of the file).
@@ -248,13 +241,6 @@ bool writeFile() {
     }
     const bool ok = fflush(f) == 0;
     fclose(f);
-#ifdef __SWITCH__
-    // Horizon's rename does not replace an existing file (EEXIST): drop the old one first. A kill
-    // between the two calls leaves only the .tmp, and the next save writes it again.
-    if (ok) {
-        remove(s.path.c_str());
-    }
-#endif
     if (!ok || rename(tmp.c_str(), s.path.c_str()) != 0) {
         pc::writef(STDERR_FILENO, "[cos] settings: cannot replace %s: %s\n", s.path.c_str(), strerror(errno));
         return false;
@@ -358,12 +344,8 @@ void sortOrder() {
 }
 
 PcOperationMode queryMode() {
-#if defined(__SWITCH__)
-    return cos_switch_docked() ? PC_MODE_DOCKED : PC_MODE_HANDHELD;
-#else
     const char* v = getenv("COS_OPERATION_MODE");
     return v != nullptr && strcmp(v, "docked") == 0 ? PC_MODE_DOCKED : PC_MODE_HANDHELD;
-#endif
 }
 
 // Thread-local copies for pc_settings_get's return value (a pointer that stays valid until the
@@ -387,7 +369,6 @@ void pc_settings_load_early(void) {
     }
     s.loaded = true;
     computePath();
-#if !defined(__SWITCH__)
     // The process environment at start locks a setting (test kits and run.sh). The Switch has no
     // such environment: everything there comes from this file (and the defaults after it).
     for (char** e = environ; e != nullptr && *e != nullptr; e++) {
@@ -400,7 +381,6 @@ void pc_settings_load_early(void) {
             s.envAtStart[name] = eq + 1;
         }
     }
-#endif
     readFile();
     s.lastMode = queryMode();
     s.haveLastMode = true;
@@ -506,7 +486,7 @@ int pc_settings_migrate_env_file(const char* envPath, const char* oldPath) {
         pc::writef(STDERR_FILENO, "[cos] settings: env.txt not migrated (the settings file cannot be written)\n");
         return -1;
     }
-    remove(oldPath); // Horizon's rename does not replace an existing file
+    remove(oldPath); // a rename that does not replace an existing file would fail otherwise
     if (rename(envPath, oldPath) != 0) {
         pc::writef(STDERR_FILENO, "[cos] settings: cannot rename %s to %s: %s\n", envPath, oldPath, strerror(errno));
     }

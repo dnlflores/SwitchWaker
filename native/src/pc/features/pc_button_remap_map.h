@@ -27,9 +27,9 @@ using Map = std::array<Input, (size_t)Action::Count>;
 
 // The default map: what Aurora's Pro Controller table gives today. labelLayout false (the Mac and
 // Linux: SDL 3 reports the face buttons by position) puts the GameCube's A on the south button, the
-// one labelled B on a Switch controller, and so on by position. labelLayout true (the Switch: the
-// libnx SDL shim maps HidNpadButton_A to SDL's south button, so Aurora's table works by label)
-// puts each GameCube face button on the Switch button printed with the same letter.
+// one labelled B on a Nintendo-layout controller, and so on by position. labelLayout true (an SDL layer
+// that reports the face buttons by label; no current build, kept for pc_tests) puts each GameCube face
+// button on the button printed with the same letter.
 inline Map defaultMapFor(bool labelLayout) {
     Map m{};
     m[(size_t)Action::A] = labelLayout ? Input::A : Input::B;
@@ -49,11 +49,7 @@ inline Map defaultMapFor(bool labelLayout) {
 
 // This platform's default map.
 inline Map defaultMap() {
-#if defined(__SWITCH__)
-    return defaultMapFor(true);
-#else
     return defaultMapFor(false);
-#endif
 }
 
 // The config key of an action.

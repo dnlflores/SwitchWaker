@@ -1,4 +1,4 @@
-// The mist at a lower resolution (pc_gpu_opts.h COS_MIST_LOWRES; docs/SWITCH_PERF_STUDY.md), moved
+// The mist at a lower resolution (pc_gpu_opts.h COS_MIST_LOWRES), moved
 // out of game/ (step G3 of docs/GAME_CODE_ORGANIZATION.md): drawCloudShadow (d_kankyo_rain.cpp).
 // Declared in native/include/pc/game_hooks.h; the game calls it under TARGET_PC.
 #include "d/dolzel.h" // IWYU pragma: keep
@@ -73,7 +73,7 @@ static void pcMistDrawFullscreen(void* buf, GXBool blend, u32 w, u32 h) {
     GXSetCurrentMtx(GX_PNMTX0);
 }
 
-// COS_MIST_LOWRES (pc_gpu_opts.h; docs/SWITCH_PERF_STUDY.md, section 8): the forest mist
+// COS_MIST_LOWRES (pc_gpu_opts.h): the forest mist
 // ("moya", up to 100 camera-facing sprites drawn with no depth test, blended with
 // SRC_ALPHA/INV_SRC_ALPHA) costs 10-12 screens of blended fragments in A_mori at 1280x720. Drawn
 // into an offscreen target 1/divisor the EFB's size and composited, the result is the same

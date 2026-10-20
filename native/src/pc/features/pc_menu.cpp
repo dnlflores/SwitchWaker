@@ -18,7 +18,7 @@
 // Every row is a setting of pc_settings.h (the environment variable it already had) or an action
 // (warp, screenshot, reload). Settings with PC_SETTING_RESTART apply at the next start; the others
 // apply at once through the setters of pc_gpu_opts.h, pc_dynres.h, pc_main.cpp (COS_FB_SCALE),
-// pc_frame.cpp (COS_PERF_EVERY) and the Switch layer (COS_SWITCH_GPU_PROFILE). The graphics settings
+// pc_frame.cpp (COS_PERF_EVERY). The graphics settings
 // marked per mode keep one value for handheld and one for docked; the "Perfil a editar" row picks
 // which one the rows show and change, and pc_settings_poll_mode applies the other mode's values when
 // the console is docked or undocked.
@@ -72,9 +72,6 @@
 #include <unistd.h>
 #include <vector>
 
-#if defined(__SWITCH__)
-#include "cos_switch.h"
-#endif
 
 // Aurora's <dolphin/pad.h> (the game's own comes first on the include path).
 extern "C" struct SDL_Gamepad* PADGetSDLGamepadForIndex(u32 index);
@@ -126,12 +123,6 @@ uint32_t readScript() {
 // The face button labelled `label` (A or B) on this controller: a Switch-style layout has A on the
 // right (east), an Xbox layout at the bottom (south).
 SDL_GamepadButton labelled(SDL_Gamepad* gp, SDL_GamepadButtonLabel label) {
-#if defined(__SWITCH__)
-    // Aurora's SDL 3 shim (switch/aurora/sdl3_shim) maps the Switch's A to south and B to east, and
-    // has no button labels.
-    (void)gp;
-    return label == SDL_GAMEPAD_BUTTON_LABEL_A ? SDL_GAMEPAD_BUTTON_SOUTH : SDL_GAMEPAD_BUTTON_EAST;
-#endif
     const SDL_GamepadButton buttons[] = {SDL_GAMEPAD_BUTTON_SOUTH, SDL_GAMEPAD_BUTTON_EAST,
                                          SDL_GAMEPAD_BUTTON_WEST, SDL_GAMEPAD_BUTTON_NORTH};
     for (SDL_GamepadButton b : buttons) {
@@ -149,18 +140,12 @@ uint32_t readGamepads() {
         if (gp == nullptr) {
             continue;
         }
-#if defined(__SWITCH__)
-        // Minus alone: the SDL shim shows every controller as a Pro Controller, whose mapping gives
-        // Minus (BACK) to no game button.
-        bool combo = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_BACK);
-#else
         const bool lt = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > 16000;
         const bool rt = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > 16000;
         // ZL+ZR+Minus: elsewhere BACK can be a game button (an NSO GameCube controller's Z).
         bool combo = lt && rt && SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_BACK);
         // A GameCube controller through SDL: L and R are the triggers, Z the right shoulder.
         combo = combo || (lt && rt && SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER));
-#endif
         if (combo) {
             k |= kCombo;
             continue;
@@ -397,12 +382,6 @@ const Warp& warpAt(int i) {
 
 // ---- built-in settings ---------------------------------------------------------------------------
 
-#if defined(__SWITCH__)
-constexpr bool kSwitch = true;
-#else
-constexpr bool kSwitch = false;
-#endif
-
 // The menu's language (pc_ui_spanish, as the shader loading screen): the Spanish text or the English one.
 const char* T(const char* es, const char* en) {
     return pc_ui_spanish() || en == nullptr ? es : en;
@@ -432,13 +411,6 @@ void applyCameraInvertY(const char*, const char* v, void*) { pc_camera_invert_y_
 void applyCameraShake(const char*, const char* v, void*) { pc_camera_shake_set(strcmp(v, "1") == 0); }
 void applyHeatHaze(const char*, const char* v, void*) { pc_heat_haze_set(strcmp(v, "1") == 0); }
 void applyQol(const char* key, const char* v, void*) { pc_qol_set(key, v); }
-void applyGpuProfile(const char*, const char* v, void*) {
-#if defined(__SWITCH__)
-    cos_switch_set_gpu_profile(v);
-#else
-    (void)v;
-#endif
-}
 void applyOverlay(const char*, const char* v, void*) { gConfig.fpsOverlay = strcmp(v, "1") == 0; }
 void applyOverlayDetail(const char*, const char* v, void*) {
     gConfig.fpsOverlayCompact = strcmp(v, "compact") == 0;
@@ -453,9 +425,7 @@ void applyFps60(const char*, const char* v, void*) { pc_fps60_set(strcmp(v, "1")
 #define CHOICES(name) name, (int)(sizeof(name) / sizeof(name[0]))
 
 const PcSettingChoice kFbScale[] = {
-#if !defined(__SWITCH__)
     {"0", "Tamaño de la ventana", "Window size"},
-#endif
     {"1.0", "854x480 (1.0)"},  {"1.125", "960x540 (1.125)"}, {"1.25", "1067x600 (1.25)"},
     {"1.5", "1280x720 (1.5)"}, {"2.0", "1707x960 (2.0)"},    {"2.25", "1920x1080 (2.25)"},
 };
@@ -468,8 +438,6 @@ const PcSettingChoice kHdMaxSize[] = {{"auto", "Automático (512 / 1024)", "Auto
 const PcSettingChoice kDynres[] = {{"auto", "Con 60 fps", "With 60 fps"},
                                    {"0", "Desactivada", "Off"},
                                    {"1", "Siempre", "Always"}};
-const PcSettingChoice kGpuProfile[] = {
-    {"460", "460,8 MHz", "460.8 MHz"}, {"384", "384 MHz"}, {"default", "Del sistema (307,2 MHz)", "System default (307.2 MHz)"}};
 const PcSettingChoice kDetail[] = {{"full", "Completo", "Full"}, {"compact", "Compacto", "Compact"}};
 const PcSettingChoice kPrecompile[] = {
     {"boot", "Arranque (boot)", "Boot (boot)"}, {"full", "Completo (full)", "Full (full)"}, {"all", "Todos, sin pantalla (all)", "All, no screen (all)"}, {"off", "Desactivado", "Off"}};
@@ -499,7 +467,7 @@ const PcSettingDesc kBuiltins[] = {
     // Gráficos
     {"COS_FB_SCALE", "Resolución interna",
      "Resolución a la que se dibuja el juego antes de escalar a la pantalla. Más baja = más rápido.",
-     PC_SETTING_TAB_GRAPHICS, PC_SETTING_PER_MODE, CHOICES(kFbScale), kSwitch ? "1.5" : "0", applyFbScale,
+     PC_SETTING_TAB_GRAPHICS, PC_SETTING_PER_MODE, CHOICES(kFbScale), "0", applyFbScale,
      nullptr, 10,
      "Internal resolution",
      "Resolution the game is drawn at before scaling to the screen. Lower = faster."},
@@ -539,7 +507,7 @@ const PcSettingDesc kBuiltins[] = {
      "The picture wobbles over lava and fire (Dragon Roost and its cavern), as on the GameCube. "
      "At 60 fps it looks wrong: it distorts too much."},
     {"COS_ASPECT", "Relación de aspecto", "Imagen panorámica 16:9 o la 4:3 original de la GameCube.",
-     PC_SETTING_TAB_GRAPHICS, PC_SETTING_RESTART, CHOICES(kAspect), kSwitch ? "16:9" : "4:3", nullptr, nullptr,
+     PC_SETTING_TAB_GRAPHICS, PC_SETTING_RESTART, CHOICES(kAspect), "4:3", nullptr, nullptr,
      70,
      "Aspect ratio",
      "16:9 widescreen or the GameCube's original 4:3."},
@@ -554,11 +522,6 @@ const PcSettingDesc kBuiltins[] = {
      "Longest side of the HD textures. Automatic: 512 handheld, 1024 docked. They change "
      "gradually."},
     // Rendimiento
-    {"COS_SWITCH_GPU_PROFILE", "Perfil de GPU (portátil)",
-     "Reloj de la GPU en modo portátil (perfiles oficiales de la consola; la CPU sigue a 1020 MHz).",
-     PC_SETTING_TAB_PERFORMANCE, PC_SETTING_SWITCH_ONLY, CHOICES(kGpuProfile), "460", applyGpuProfile, nullptr, 10,
-     "GPU profile (handheld)",
-     "GPU clock in handheld mode (the console's official profiles; the CPU stays at 1020 MHz)."},
     {"COS_FPS_OVERLAY", "Contador de FPS", "Panel de cuadros por segundo y tiempos en la esquina.",
      PC_SETTING_TAB_PERFORMANCE, 0, CHOICES(kOnOff), "0", applyOverlay, nullptr, 20,
      "FPS counter",
@@ -570,7 +533,7 @@ const PcSettingDesc kBuiltins[] = {
      "Full: render, draw and GPU timings. Compact: only FPS and game time."},
     {"COS_PRECOMPILE", "Precarga de shaders",
      "Qué shaders se compilan al arrancar: arranque (los del inicio y el resto detrás), completo, todos o ninguno.",
-     PC_SETTING_TAB_PERFORMANCE, PC_SETTING_RESTART, CHOICES(kPrecompile), kSwitch ? "boot" : "off", nullptr,
+     PC_SETTING_TAB_PERFORMANCE, PC_SETTING_RESTART, CHOICES(kPrecompile), "off", nullptr,
      nullptr, 40,
      "Shader preloading",
      "Which shaders are compiled at start: boot (the start-up ones, the rest behind), full, all or "
@@ -700,23 +663,9 @@ const PcSettingDesc kBuiltins[] = {
      "Hides or shows the [cos] perf and perf-switch lines (measuring goes on)."},
     {"COS_HD_STATS_EVERY", "Estadísticas de texturas HD",
      "Cada cuántos cuadros se escribe una línea [cos] hd-textures (aciertos, cargas, MiB) con las texturas HD activas.",
-     PC_SETTING_TAB_DEBUG, 0, CHOICES(kHdStats), kSwitch ? "0" : "300", applyHdStats, nullptr, 112,
+     PC_SETTING_TAB_DEBUG, 0, CHOICES(kHdStats), "300", applyHdStats, nullptr, 112,
      "HD texture stats",
      "How many frames between [cos] hd-textures lines (hits, loads, MiB) while HD textures are on."},
-    {"COS_USB_LOG", "Registro en directo por USB",
-     "Para desarrollo: envía el registro por USB a scripts/switch/usb_log.py mientras juegas. Ocupa el "
-     "puerto USB (por ejemplo, SysDVR por USB no podrá usarlo); el registro en la tarjeta SD se escribe siempre.",
-     PC_SETTING_TAB_DEBUG, PC_SETTING_RESTART | PC_SETTING_SWITCH_ONLY, CHOICES(kOnOff), "0", nullptr, nullptr, 120,
-     "Live log over USB",
-     "For development: sends the log over USB to scripts/switch/usb_log.py while you play. It holds "
-     "the USB port (SysDVR over USB, for example, cannot use it); the log on the SD card is always written."},
-    {"COS_DEBUG_SERVER", "Servidor de depuración (red)",
-     "Solo para desarrollo: abre un puerto en la red local, sin contraseña, para scripts/switch/"
-     "switchwaker_debug.py (registro, capturas, warps, archivos). Ver docs/DEBUG_SERVER.md.",
-     PC_SETTING_TAB_DEBUG, PC_SETTING_RESTART | PC_SETTING_SWITCH_ONLY, CHOICES(kOnOff), "0", nullptr, nullptr, 125,
-     "Debug server (network)",
-     "For development only: opens a port on the local network, without a password, for scripts/switch/"
-     "switchwaker_debug.py (log, screenshots, warps, files). See docs/DEBUG_SERVER.md."},
 };
 
 // ---- menu state ----------------------------------------------------------------------------------
@@ -1280,9 +1229,6 @@ std::string rowNote(const Row& r) {
     if (pc_settings_locked(d->key)) {
         return T("fijado por variable de entorno", "set by an environment variable");
     }
-    if ((d->flags & PC_SETTING_SWITCH_ONLY) && !kSwitch) {
-        return T("solo Switch", "Switch only");
-    }
     if (d->flags & PC_SETTING_RESTART) {
         return pc_settings_restart_pending(d->key) ? T("requiere reiniciar (pendiente)", "needs a restart (pending)")
                                                    : T("requiere reiniciar", "needs a restart");
@@ -1374,11 +1320,6 @@ void drawMenu() {
     ImGui::SetWindowFocus();
 
     ImGui::TextColored(kAccent, "%s", T("Opciones", "Options"));
-#if defined(__SWITCH__)
-    // the version, so a player can tell which build they run (an issue report, an update)
-    ImGui::SameLine();
-    ImGui::TextColored(kDim, "SwitchWaker %s", cos_switch_version());
-#endif
     const std::string mode = std::string(T("Modo: ", "Mode: ")) + modeName(pc_settings_mode());
     ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(mode.c_str()).x - ImGui::GetStyle().WindowPadding.x);
     ImGui::TextColored(kDim, "%s", mode.c_str());
@@ -1509,10 +1450,8 @@ void drawMenu() {
     ImGui::SetCursorPosY(ImGui::GetWindowHeight() - ImGui::GetTextLineHeightWithSpacing() -
                          ImGui::GetStyle().WindowPadding.y);
     ImGui::TextColored(kDim, "%s",
-                       kSwitch ? T("A: cambiar   B: cerrar   L/R: pestaña   Menos: cerrar",
-                                   "A: change   B: close   L/R: tab   Minus: close")
-                               : T("A/Intro: cambiar   B/Esc: cerrar   L/R, Q/E: pestaña   F1: cerrar",
-                                   "A/Enter: change   B/Esc: close   L/R, Q/E: tab   F1: close"));
+                       T("A/Intro: cambiar   B/Esc: cerrar   L/R, Q/E: pestaña   F1: cerrar",
+                         "A/Enter: change   B/Esc: close   L/R, Q/E: tab   F1: close"));
     ImGui::End();
 }
 
@@ -1841,7 +1780,7 @@ void menuInit() {
         smokeParse();
     }
     writef(STDERR_FILENO, "[cos] menu: %d settings; open with %s; settings file %s\n", pc_settings_count(),
-           kSwitch ? "Minus" : "F1 or L+R+Z", pc_settings_path());
+           "F1 or L+R+Z", pc_settings_path());
 }
 
 bool menuOpen() {
@@ -1883,7 +1822,7 @@ void menuFrame() {
     drawMenu();
 }
 
-// ---- the Switch debug server (switch/native/source/cos_debug.cpp): its thread asks, the game thread acts
+// ---- debug commands (pc_debug_*): another thread asks, the game thread acts (the QoL probe smoke uses "give")
 std::mutex sDebugMu;
 struct DebugWarp {
     bool pending = false;
@@ -1903,7 +1842,7 @@ struct DebugEvent {
 // "give NAME|ITEM ...": items through the game's own item-get functions (execItemGet, d_item.cpp: the
 // inventory slot, the "got it" bit, the song bits, the bomb count), applied by the game thread once a file
 // is played and the player exists, as a chest or a shop would. For testing the QoL options on the player's
-// own save (docs/DEBUG_SERVER.md).
+// own save.
 struct DebugGive {
     int count = 0;
     u8 items[16] = {};

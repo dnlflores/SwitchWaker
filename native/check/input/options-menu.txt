@@ -36,13 +36,11 @@
 432 - 0 0
 442 A 0 0
 444 - 0 0
-# R, R: Controles, Rendimiento; down to "Contador de FPS", A turns it on
+# R, R: Controles, Rendimiento; "Contador de FPS" is its first row, A turns it on
 446 R 0 0
 448 - 0 0
 450 R 0 0
 452 - 0 0
-454 DOWN 0 0
-456 - 0 0
 458 A 0 0
 460 - 0 0
 # R, R: Calidad de vida, Depuración; B closes the menu
